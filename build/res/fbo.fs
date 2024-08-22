@@ -5,7 +5,7 @@ in vec2 frag_UV;
 
 uniform sampler2D screenTexture;
 uniform int AAMethod;
-uniform vec2 screeSize;
+uniform vec2 screenSize;
 
 const float offset = 1.0 / 300.0;
 
@@ -72,7 +72,7 @@ vec3 FXAA() {
 	// Gradient in the corresponding direction, normalized.
 	float gradientScaled = 0.25*max(abs(gradient1),abs(gradient2));
 	// Choose the step size (one pixel) according to the edge direction.
-	vec2 inverseScreenSize = vec2(1.0/screeSize.x,1.0/screeSize.y);
+	vec2 inverseScreenSize = vec2(1.0/screenSize.x,1.0/screenSize.y);
 	float stepLength = inverseScreenSize.x;
 	if(isHorizontal) stepLength = inverseScreenSize.y;
 	// Average luma in the correct direction.
@@ -186,7 +186,7 @@ float GetColorLuminance(vec3 i_vColor ){
 }
 
 vec3 NFAA() {
-    vec2 vPixelViewport = vec2(1.0 / screeSize.x, 1.0 / screeSize.y);
+    vec2 vPixelViewport = vec2(1.0 / screenSize.x, 1.0 / screenSize.y);
     
     // Normal
     vec2 upOffset = vec2(0, vPixelViewport.y);

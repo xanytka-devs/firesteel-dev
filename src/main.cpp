@@ -1,6 +1,7 @@
 #include "../include/window.hpp"
 #include "../include/camera.hpp"
 #include "../include/transform.hpp"
+#include "../include/fbo.hpp"
 using namespace LearningOpenGL;
 
 Camera camera(glm::vec3(0.0f, 0.0f, 3.0f), glm::vec3(0, 0, -90));
@@ -23,6 +24,11 @@ int main() {
         return -1;
     }
     glEnable(GL_DEPTH_TEST);
+    glEnable(GL_STENCIL_TEST);
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    glEnable(GL_CULL_FACE);
+    glCullFace(GL_BACK);
     glfwSetCursorPosCallback(win.ptr(), mouseCallback);
     glfwSetScrollCallback(win.ptr(), scrollCallback);
     //OpenGL info.
@@ -32,7 +38,11 @@ int main() {
     LOG_INFO("	Version: ", reinterpret_cast<const char*>(glGetString(GL_VERSION)));
     win.setCursorMode(Window::CUR_DISABLED);
     Shader modelShader("res/model.vs", "res/model.fs");
+    Shader fboShader("res/fbo.vs", "res/fbo.fs");
     Transform backpack("res/backpack/backpack.obj");
+    Framebuffer fbo(win.getSize());
+    fbo.quad();
+    if(!fbo.isComplete()) LOG_ERRR("FBO isn't complete");
     // Rendering.
     while(win.isOpen()) {
         // Delta time calculation.
@@ -41,6 +51,7 @@ int main() {
         lastFrame = currentFrame;
         // Input processing.
         processInput(&win, win.ptr());
+        fbo.bind();
         win.clearBuffers();
         // View/projection transformations.
         glm::mat4 projection = camera.getProjection(win.aspect(), 1);
@@ -57,6 +68,12 @@ int main() {
         modelShader.setMat4("view", view);
         modelShader.setMat4("model", model);
         backpack.draw(modelShader);
+        fbo.unbind();
+        win.clearBuffers();
+        fboShader.enable();
+        fboShader.setInt("AAMethod", 1);
+        fboShader.setVec2("screenSize", win.getSize());
+        fbo.drawQuad(&fboShader);
         win.update();
     }
     // Quitting.
