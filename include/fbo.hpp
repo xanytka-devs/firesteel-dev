@@ -28,14 +28,14 @@ namespace LearningOpenGL {
             //Framebuffer's texture.
             glGenTextures(1, &fboTex);
             glBindTexture(GL_TEXTURE_2D, fboTex);
-            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, tSize.x, tSize.y, 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, static_cast<GLuint>(tSize.x), static_cast<GLuint>(tSize.y), 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
             glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, fboTex, 0);
             //Framebuffer's render buffer.
             glGenRenderbuffers(1, &rbo);
             glBindRenderbuffer(GL_RENDERBUFFER, rbo);
-            glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, tSize.x, tSize.y);
+            glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, static_cast<GLuint>(tSize.x), static_cast<GLuint>(tSize.y));
             glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, rbo);
         }
 

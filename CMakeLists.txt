@@ -38,6 +38,8 @@ add_subdirectory(external/assimp ${CMAKE_CURRENT_BINARY_DIR}/assimp)
 target_link_libraries(${PRJ_NAME} PRIVATE assimp)
 
 find_package(Freetype REQUIRED)
+target_include_directories(${PRJ_NAME} PRIVATE external/freetype)
+target_link_libraries(${PRJ_NAME} PRIVATE "G:/! New/! EXPERIMENTS/RE_OGL/external/freetype/freetype.lib")
 
 set_target_properties(assimp PROPERTIES FOLDER "External")
 set_target_properties(glad PROPERTIES FOLDER "External")
