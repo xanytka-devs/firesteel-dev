@@ -6,9 +6,7 @@
 #include <assimp/Importer.hpp>
 #include <assimp/scene.h>
 #include <assimp/postprocess.h>
-
-#define STB_IMAGE_IMPLEMENTATION
-#include "utils/stb_image.hpp"
+#include "utils/utils.hpp"
 
 #include "mesh.hpp"
 #include "shader.hpp"
@@ -21,7 +19,6 @@
 #include <vector>
 
 namespace LearningOpenGL {
-    unsigned int TextureFromFile(const char* tPath, const std::string& tDirectory, bool tGamma = false);
 
     class Transform {
     public:
@@ -174,37 +171,5 @@ namespace LearningOpenGL {
         }
     };
 
-    /// Loads texture from given file.
-    unsigned int TextureFromFile(const char* tPath, const std::string& tDirectory, bool tGamma) {
-        std::string filename = std::string(tPath);
-        filename = tDirectory + '/' + filename;
-
-        unsigned int textureID;
-        glGenTextures(1, &textureID);
-
-        int width, height, nrComponents;
-        unsigned char* data = stbi_load(filename.c_str(), &width, &height, &nrComponents, 0);
-        if (data) {
-            GLenum format=0;
-            if (nrComponents == 1)
-                format = GL_RED;
-            else if (nrComponents == 3)
-                format = GL_RGB;
-            else if (nrComponents == 4)
-                format = GL_RGBA;
-
-            glBindTexture(GL_TEXTURE_2D, textureID);
-            glTexImage2D(GL_TEXTURE_2D, 0, format, width, height, 0, format, GL_UNSIGNED_BYTE, data);
-            glGenerateMipmap(GL_TEXTURE_2D);
-
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-        } else
-            LOG_ERRR("Texture failed to load at path: ", tPath);
-        stbi_image_free(data);
-        return textureID;
-    }
 }
 #endif

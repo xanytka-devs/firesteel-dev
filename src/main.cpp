@@ -17,7 +17,7 @@ int fps = 0;
 double last_frame_fps = 0.f;
 double last_frame = 0.f;
 int frame_count = 0;
-void processInput(Window* tWin, GLFWwindow* tPtr);
+void processInput(Window* tWin, GLFWwindow* tPtr, std::vector<Shader*>* tShaders);
 void mouseCallback(GLFWwindow* window, double xposIn, double yposIn);
 void scrollCallback(GLFWwindow* window, double xoffset, double yoffset);
 /// Get current date/time, format is YYYY-MM-DD HH:mm:ss
@@ -59,9 +59,19 @@ int main() {
     displayLoadingMsg("Compiling shaders", &textShader, &win);
     Shader modelShader("res/model.vs", "res/model.fs");
     Shader fboShader("res/fbo.vs", "res/fbo.fs");
+    Shader billboardShader("res/billboard.vs", "res/billboard.fs");
+    std::vector<Shader*> shads;
+    shads.push_back(&modelShader);
+    shads.push_back(&billboardShader);
     // Load models.
     displayLoadingMsg("Loading backpack", &textShader, &win);
     Transform backpack("res/backpack/backpack.obj");
+    displayLoadingMsg("Loading quad", &textShader, &win);
+    Transform quad("res/primitives/quad.obj");
+    Texture billTex;
+    billTex.id = TextureFromFile("yeah.png", "res/");
+    billTex.type = "texture_diffuse";
+    billTex.path = "yeah.png";
     // Framebuffer.
     displayLoadingMsg("Creating FBO", &textShader, &win);
     Framebuffer fbo(win.getSize());
@@ -80,7 +90,7 @@ int main() {
             last_frame_fps = currentFrame;
         }
         // Input processing.
-        processInput(&win, win.ptr());
+        processInput(&win, win.ptr(), &shads);
         fbo.bind();
         win.clearBuffers();
         // View/projection transformations.
@@ -99,6 +109,24 @@ int main() {
             modelShader.setMat4("view", view);
             modelShader.setMat4("model", model);
             backpack.draw(modelShader);
+        }
+        // Draw billboard.
+        {
+            model = glm::mat4(1.0f);
+            model = glm::translate(model, glm::vec3(0.f, 5.f, 0.f));
+            model = glm::scale(model, glm::vec3(1.f));
+            model = glm::rotate(model, float(glm::radians(0.f)), glm::vec3(1, 0, 0));
+            model = glm::rotate(model, float(glm::radians(0.f)), glm::vec3(0, 1, 0));
+            model = glm::rotate(model, float(glm::radians(0.f)), glm::vec3(0, 0, 1));
+            glActiveTexture(0);
+            glBindTexture(GL_TEXTURE_2D, billTex.id);
+            billboardShader.enable();
+            billboardShader.setMat4("projection", projection);
+            billboardShader.setMat4("view", view);
+            billboardShader.setMat4("model", model);
+            quad.draw(billboardShader);
+            glBindTexture(GL_TEXTURE_2D, 0);
+            glActiveTexture(0);
         }
         // Draw FBO.
         {
@@ -131,7 +159,7 @@ int main() {
 }
 
 float speed_mult = 2.f;
-void processInput(Window* tWin, GLFWwindow* tPtr) {
+void processInput(Window* tWin, GLFWwindow* tPtr, std::vector<Shader*>* tShaders) {
     if (glfwGetKey(tPtr, GLFW_KEY_ESCAPE) == GLFW_PRESS)
         tWin->close();
 
@@ -158,6 +186,19 @@ void processInput(Window* tWin, GLFWwindow* tPtr) {
         camera.pos.y += velocity;
     if (glfwGetKey(tPtr, GLFW_KEY_LEFT_CONTROL) == GLFW_PRESS)
         camera.pos.y -= velocity;
+    if (glfwGetKey(tPtr, GLFW_KEY_1) == GLFW_PRESS) {
+        for (size_t i = 0; i < tShaders->size(); i++){
+            tShaders->at(i)->enable();
+            tShaders->at(i)->setInt("DrawMode", 0);
+        }
+    }
+    if (glfwGetKey(tPtr, GLFW_KEY_2) == GLFW_PRESS) {
+        for (size_t i = 0; i < tShaders->size(); i++) {
+            tShaders->at(i)->enable();
+            tShaders->at(i)->setInt("DrawMode", 1);
+        }
+    }
+
 }
 float MouseSensitivity = 0.1f;
 void mouseCallback(GLFWwindow* window, double xposIn, double yposIn) {
