@@ -5,17 +5,15 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.hpp"
 
-unsigned int TextureFromFile(const char* tPath, const std::string& tDirectory, bool tGamma = false);
+unsigned int TextureFromFile(const std::string& tPath, bool tGamma = false);
 /// Loads texture from given file.
-unsigned int TextureFromFile(const char* tPath, const std::string& tDirectory, bool tGamma) {
-    std::string filename = std::string(tPath);
-    filename = tDirectory + '/' + filename;
+unsigned int TextureFromFile(const std::string& tPath, bool tGamma) {
 
     unsigned int textureID;
     glGenTextures(1, &textureID);
 
     int width, height, nrComponents;
-    unsigned char* data = stbi_load(filename.c_str(), &width, &height, &nrComponents, 0);
+    unsigned char* data = stbi_load(tPath.c_str(), &width, &height, &nrComponents, 0);
     if (data) {
         GLenum format = 0;
         if (nrComponents == 1)
@@ -33,9 +31,8 @@ unsigned int TextureFromFile(const char* tPath, const std::string& tDirectory, b
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    }
-    else
-        LOG_ERRR("Texture failed to load at path: ", tPath);
+    } else
+        LOG_ERRR("Texture failed to load at path: ", tPath.c_str());
     stbi_image_free(data);
     return textureID;
 }

@@ -123,6 +123,25 @@ namespace LearningOpenGL {
             }
             // Process materials.
             aiMaterial* material = tScene->mMaterials[tMesh->mMaterialIndex];
+            //Does the model even have textures?
+            if(material->GetTextureCount(aiTextureType_DIFFUSE) == 0
+                && material->GetTextureCount(aiTextureType_SPECULAR) == 0) {
+                //Diffuse and specular color.
+                aiColor4D def(1.0f);
+                aiColor4D spec(1.0f);
+                aiColor4D emis(1.0f);
+                aiColor4D height(1.0f);
+                aiGetMaterialColor(material, AI_MATKEY_COLOR_DIFFUSE, &def);
+                aiGetMaterialColor(material, AI_MATKEY_COLOR_SPECULAR, &spec);
+                aiGetMaterialColor(material, AI_MATKEY_COLOR_EMISSIVE, &emis);
+                aiGetMaterialColor(material, AI_MATKEY_COLOR_AMBIENT, &height);
+                //Output.
+                glm::vec4 def_v = glm::vec4(def.r, def.g, def.b, def.a);
+                glm::vec4 spec_v = glm::vec4(spec.r, spec.g, spec.b, spec.a);
+                glm::vec4 emis_v = glm::vec4(emis.r, emis.g, emis.b, emis.a);
+                glm::vec4 height_v = glm::vec4(height.r, height.g, height.b, height.a);
+                return Mesh(vertices, indices, def_v, spec_v, emis_v, height_v);
+            }
             std::vector<Texture> texs;
             // Diffuse maps.
             texs = loadMaterialTextures(material, aiTextureType_DIFFUSE, "texture_diffuse");
@@ -138,6 +157,10 @@ namespace LearningOpenGL {
             texs.clear();
             // Height maps.
             texs = loadMaterialTextures(material, aiTextureType_AMBIENT, "texture_height");
+            textures.insert(textures.end(), texs.begin(), texs.end());
+            texs.clear();
+            // Emission maps.
+            texs = loadMaterialTextures(material, aiTextureType_EMISSIVE, "texture_emission");
             textures.insert(textures.end(), texs.begin(), texs.end());
 
             return Mesh(vertices, indices, textures);
@@ -161,7 +184,7 @@ namespace LearningOpenGL {
                 if(skip) continue;
                 // If texture hasn't been loaded already, load it.
                 Texture texture;
-                texture.id = TextureFromFile(str.C_Str(), this->directory);
+                texture.id = TextureFromFile(this->directory + "/" + str.C_Str());
                 texture.type = typeName;
                 texture.path = str.C_Str();
                 textures.push_back(texture);

@@ -5,6 +5,8 @@
 #include "../include/2d/text.hpp"
 #include <stdio.h>
 #include <time.h>
+#include "../include/particles.hpp"
+#include "../include/light.hpp"
 using namespace LearningOpenGL;
 
 Camera camera(glm::vec3(0.0f, 0.0f, 3.0f), glm::vec3(0, 0, -90));
@@ -17,7 +19,8 @@ int fps = 0;
 double last_frame_fps = 0.f;
 double last_frame = 0.f;
 int frame_count = 0;
-void processInput(Window* tWin, GLFWwindow* tPtr, std::vector<Shader*>* tShaders);
+int drawMode = 0;
+void processInput(Window* tWin, GLFWwindow* tPtr);
 void mouseCallback(GLFWwindow* window, double xposIn, double yposIn);
 void scrollCallback(GLFWwindow* window, double xoffset, double yoffset);
 /// Get current date/time, format is YYYY-MM-DD HH:mm:ss
@@ -57,19 +60,27 @@ int main() {
     LOG_INFO("	Version: ", reinterpret_cast<const char*>(glGetString(GL_VERSION)));
     // Shaders.
     displayLoadingMsg("Compiling shaders", &textShader, &win);
+    //Shader modelShader("res/model.vs", "res/model.fs");
     Shader modelShader("res/model.vs", "res/model.fs");
     Shader fboShader("res/fbo.vs", "res/fbo.fs");
     Shader billboardShader("res/billboard.vs", "res/billboard.fs");
-    std::vector<Shader*> shads;
-    shads.push_back(&modelShader);
-    shads.push_back(&billboardShader);
+    Shader particlesShader("res/particles.vs", "res/particles.fs");
+    Shader lightShader("res/model.vs", "res/light.fs");
+
+    ParticleSystem pS = ParticleSystem(glm::vec3(0, 0, 0), 500, "res/particle.png");
+    PointLight pLight{ glm::vec3(-2.f, 1.5f, -2.f),glm::vec3(1.0f, 0.5f, 0.31f)};
+
     // Load models.
     displayLoadingMsg("Loading backpack", &textShader, &win);
     Transform backpack("res/backpack/backpack.obj");
     displayLoadingMsg("Loading quad", &textShader, &win);
     Transform quad("res/primitives/quad.obj");
+    displayLoadingMsg("Loading cube", &textShader, &win);
+    Transform cube("res/primitives/cube.obj");
+    displayLoadingMsg("Loading box", &textShader, &win);
+    Transform box("res/box/box.fbx");
     Texture billTex;
-    billTex.id = TextureFromFile("yeah.png", "res/");
+    billTex.id = TextureFromFile("res/yeah.png");
     billTex.type = "texture_diffuse";
     billTex.path = "yeah.png";
     // Framebuffer.
@@ -90,7 +101,7 @@ int main() {
             last_frame_fps = currentFrame;
         }
         // Input processing.
-        processInput(&win, win.ptr(), &shads);
+        processInput(&win, win.ptr());
         fbo.bind();
         win.clearBuffers();
         // View/projection transformations.
@@ -99,16 +110,51 @@ int main() {
         glm::mat4 model = glm::mat4(1.0f);
         // Render backpack.
         {
-            model = glm::translate(model, glm::vec3(0.f, 0.f, 0.f));
-            model = glm::scale(model, glm::vec3(0.25f));
+            model = glm::translate(model, glm::vec3(0.f, 0.f, -1.f));
+            model = glm::scale(model, glm::vec3(0.5f));
             model = glm::rotate(model, float(glm::radians(0.f)), glm::vec3(1, 0, 0));
             model = glm::rotate(model, float(glm::radians(0.f)), glm::vec3(0, 1, 0));
             model = glm::rotate(model, float(glm::radians(0.f)), glm::vec3(0, 0, 1));
             modelShader.enable();
+            modelShader.setInt("DrawMode", drawMode);
             modelShader.setMat4("projection", projection);
             modelShader.setMat4("view", view);
             modelShader.setMat4("model", model);
+            modelShader.setVec3("pointLight.position", pLight.position);
+            modelShader.setVec3("pointLight.color", pLight.color);
+            modelShader.setVec3("viewPos", camera.pos);
+            modelShader.setVec3("material.emissionColor", glm::vec3(0));
             backpack.draw(modelShader);
+        }
+        // Render box.
+        {
+            model = glm::mat4(1.0f);
+            model = glm::translate(model, glm::vec3(-1.f, 0.f, 0.f));
+            model = glm::scale(model, glm::vec3(1));
+            model = glm::rotate(model, float(glm::radians(45.f)), glm::vec3(1, 0, 0));
+            model = glm::rotate(model, float(glm::radians(45.f)), glm::vec3(0, 1, 0));
+            model = glm::rotate(model, float(glm::radians(0.f)), glm::vec3(0, 0, 1));
+            modelShader.enable();
+            modelShader.setMat4("model", model);
+            modelShader.setVec3("material.emissionColor", pLight.color);
+            modelShader.setFloat("material.emissionFactor", 1);
+            box.draw(modelShader);
+        }
+        // Draw light cube.
+        {
+            model = glm::mat4(1.0f);
+            model = glm::translate(model, pLight.position);
+            model = glm::scale(model, glm::vec3(0.8f));
+            model = glm::rotate(model, float(glm::radians(0.f)), glm::vec3(1, 0, 0));
+            model = glm::rotate(model, float(glm::radians(0.f)), glm::vec3(0, 1, 0));
+            model = glm::rotate(model, float(glm::radians(0.f)), glm::vec3(0, 0, 1));
+            lightShader.enable();
+            lightShader.setInt("DrawMode", drawMode);
+            lightShader.setMat4("projection", projection);
+            lightShader.setMat4("view", view);
+            lightShader.setMat4("model", model);
+            lightShader.setVec3("color", pLight.color);
+            cube.draw(lightShader);
         }
         // Draw billboard.
         {
@@ -121,12 +167,29 @@ int main() {
             glActiveTexture(0);
             glBindTexture(GL_TEXTURE_2D, billTex.id);
             billboardShader.enable();
+            billboardShader.setInt("DrawMode", drawMode);
             billboardShader.setMat4("projection", projection);
             billboardShader.setMat4("view", view);
             billboardShader.setMat4("model", model);
             quad.draw(billboardShader);
             glBindTexture(GL_TEXTURE_2D, 0);
             glActiveTexture(0);
+        }
+        // Particle system.
+        {
+            model = glm::mat4(1.0f);
+            model = glm::translate(model, glm::vec3(5.f, 0.f, 0.f));
+            model = glm::scale(model, glm::vec3(1.f));
+            model = glm::rotate(model, float(glm::radians(0.f)), glm::vec3(1, 0, 0));
+            model = glm::rotate(model, float(glm::radians(0.f)), glm::vec3(0, 1, 0));
+            model = glm::rotate(model, float(glm::radians(0.f)), glm::vec3(0, 0, 1));
+            particlesShader.enable();
+            particlesShader.setInt("DrawMode", drawMode);
+            particlesShader.setMat4("view", view);
+            particlesShader.setMat4("projection", projection);
+            particlesShader.setMat4("model", model);
+            pS.update(deltaTime);
+            pS.draw(&particlesShader);
         }
         // Draw FBO.
         {
@@ -159,7 +222,7 @@ int main() {
 }
 
 float speed_mult = 2.f;
-void processInput(Window* tWin, GLFWwindow* tPtr, std::vector<Shader*>* tShaders) {
+void processInput(Window* tWin, GLFWwindow* tPtr) {
     if (glfwGetKey(tPtr, GLFW_KEY_ESCAPE) == GLFW_PRESS)
         tWin->close();
 
@@ -186,18 +249,8 @@ void processInput(Window* tWin, GLFWwindow* tPtr, std::vector<Shader*>* tShaders
         camera.pos.y += velocity;
     if (glfwGetKey(tPtr, GLFW_KEY_LEFT_CONTROL) == GLFW_PRESS)
         camera.pos.y -= velocity;
-    if (glfwGetKey(tPtr, GLFW_KEY_1) == GLFW_PRESS) {
-        for (size_t i = 0; i < tShaders->size(); i++){
-            tShaders->at(i)->enable();
-            tShaders->at(i)->setInt("DrawMode", 0);
-        }
-    }
-    if (glfwGetKey(tPtr, GLFW_KEY_2) == GLFW_PRESS) {
-        for (size_t i = 0; i < tShaders->size(); i++) {
-            tShaders->at(i)->enable();
-            tShaders->at(i)->setInt("DrawMode", 1);
-        }
-    }
+    if (glfwGetKey(tPtr, GLFW_KEY_1) == GLFW_PRESS) drawMode = 0;
+    if (glfwGetKey(tPtr, GLFW_KEY_2) == GLFW_PRESS) drawMode = 1;
 
 }
 float MouseSensitivity = 0.1f;

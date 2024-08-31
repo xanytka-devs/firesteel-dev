@@ -41,12 +41,25 @@ namespace LearningOpenGL {
         std::vector<Vertex> vertices;
         std::vector<unsigned int> indices;
         std::vector<Texture> textures;
+        glm::vec3 ambient{ 0.2f };
+        glm::vec3 diffuse{ 1.f };
+        glm::vec3 specular{ 0.5f };
+        glm::vec3 emission{ 0.f };
+        glm::vec3 height{ 0.f };
 
-        /// Constructor.
-        Mesh(std::vector<Vertex> vertices, std::vector<unsigned int> indices, std::vector<Texture> textures) {
-            this->vertices = vertices;
-            this->indices = indices;
-            this->textures = textures;
+        /// Constructor with textures.
+        Mesh(std::vector<Vertex> tVertices, std::vector<unsigned int> tIndices, std::vector<Texture> tTextures)
+            : vertices(tVertices), indices(tIndices), textures(tTextures) {
+            mNoTextures = (tTextures.size()==0);
+            setupMesh();
+        }
+
+        /// Constructor without textures.
+        Mesh(std::vector<Vertex> t_vertices, std::vector<unsigned int> t_indices,
+            glm::vec3 t_diffuse, glm::vec3 t_specular, glm::vec3 t_emis, glm::vec3 t_height)
+            : vertices(t_vertices), indices(t_indices),
+            diffuse(t_diffuse), specular(t_specular), emission(t_emis), height(t_height) {
+            mNoTextures = true;
             setupMesh();
         }
 
@@ -57,22 +70,31 @@ namespace LearningOpenGL {
             unsigned int specularNr = 1;
             unsigned int normalNr = 1;
             unsigned int heightNr = 1;
-            for (unsigned int i = 0; i < textures.size(); i++) {
-                glActiveTexture(GL_TEXTURE0 + i);
-                // Retrieve texture number.
-                std::string number;
-                std::string name = textures[i].type;
-                if(name == "texture_diffuse")
-                    number = std::to_string(diffuseNr++);
-                else if (name == "texture_specular")
-                    number = std::to_string(specularNr++);
-                else if (name == "texture_normal")
-                    number = std::to_string(normalNr++);
-                else if (name == "texture_height")
-                    number = std::to_string(heightNr++);
-                // Now set the sampler to the correct texture unit.
-                glUniform1i(glGetUniformLocation(shader.ID, (name + number).c_str()), i);
-                glBindTexture(GL_TEXTURE_2D, textures[i].id);
+            shader.enable();
+            shader.setVec3("material.ambient", ambient);
+            shader.setVec3("material.diffuse", diffuse);
+            shader.setVec3("material.specular", specular);
+            shader.setVec3("material.emission", emission);
+            shader.setBool("noTextures", true);
+            if(!mNoTextures) {
+                shader.setBool("noTextures", false);
+                for (unsigned int i = 0; i < textures.size(); i++) {
+                    glActiveTexture(GL_TEXTURE0 + i);
+                    // Retrieve texture number.
+                    std::string number;
+                    std::string name = textures[i].type;
+                    if (name == "texture_diffuse")
+                        number = std::to_string(diffuseNr++);
+                    else if (name == "texture_specular")
+                        number = std::to_string(specularNr++);
+                    else if (name == "texture_normal")
+                        number = std::to_string(normalNr++);
+                    else if (name == "texture_height")
+                        number = std::to_string(heightNr++);
+                    // Now set the sampler to the correct texture unit.
+                    glUniform1i(glGetUniformLocation(shader.ID, (name + number).c_str()), i);
+                    glBindTexture(GL_TEXTURE_2D, textures[i].id);
+                }
             }
 
             // Draw mesh.
@@ -86,6 +108,7 @@ namespace LearningOpenGL {
     private:
         /// Render data.
         unsigned int VAO, VBO, EBO;
+        bool mNoTextures = false;
 
         /// Initializes all the buffer objects/arrays.
         void setupMesh() {
