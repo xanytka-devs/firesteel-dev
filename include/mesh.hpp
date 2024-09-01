@@ -66,15 +66,16 @@ namespace LearningOpenGL {
         /// Render the mesh.
         void draw(Shader& shader) {
             // Bind appropriate textures.
-            unsigned int diffuseNr = 1;
-            unsigned int specularNr = 1;
-            unsigned int normalNr = 1;
-            unsigned int heightNr = 1;
+            unsigned int diffuseNr = 0;
+            unsigned int specularNr = 0;
+            unsigned int normalNr = 0;
+            unsigned int heightNr = 0;
+            unsigned int emisNr = 0;
             shader.enable();
-            shader.setVec3("material.ambient", ambient);
-            shader.setVec3("material.diffuse", diffuse);
-            shader.setVec3("material.specular", specular);
-            shader.setVec3("material.emission", emission);
+            shader.setVec4("material.ambient", glm::vec4(ambient, 1));
+            shader.setVec4("material.diffuse", glm::vec4(diffuse, 1));
+            shader.setVec4("material.specular", glm::vec4(specular, 1));
+            shader.setVec4("material.emission", glm::vec4(emission, 1));
             shader.setBool("noTextures", true);
             if(!mNoTextures) {
                 shader.setBool("noTextures", false);
@@ -83,16 +84,18 @@ namespace LearningOpenGL {
                     // Retrieve texture number.
                     std::string number;
                     std::string name = textures[i].type;
-                    if (name == "texture_diffuse")
+                    if (name == "diffuse")
                         number = std::to_string(diffuseNr++);
-                    else if (name == "texture_specular")
+                    else if (name == "specular")
                         number = std::to_string(specularNr++);
-                    else if (name == "texture_normal")
+                    else if (name == "normal")
                         number = std::to_string(normalNr++);
-                    else if (name == "texture_height")
+                    else if (name == "height")
                         number = std::to_string(heightNr++);
+                    else if (name == "emission")
+                        number = std::to_string(emisNr++);
                     // Now set the sampler to the correct texture unit.
-                    glUniform1i(glGetUniformLocation(shader.ID, (name + number).c_str()), i);
+                    glUniform1i(glGetUniformLocation(shader.ID, ("material." + name + number).c_str()), i);
                     glBindTexture(GL_TEXTURE_2D, textures[i].id);
                 }
             }

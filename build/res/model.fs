@@ -1,15 +1,22 @@
 #version 330 core
 out vec4 frag_COLOR;
 
-in vec3 frag_POS;
-in vec2 frag_UV;
-in vec3 frag_NORMAL;
+in VS_OUT {
+    vec3 frag_POS;
+    vec2 frag_UV;
+    mat3 tan_MATRIX;
+} fs_in;
 
 struct Material {
-	vec3 ambient;
-	vec3 diffuse;
-	vec3 specular;
-	vec3 emission;
+	sampler2D diffuse0;
+	vec4 diffuse;
+	sampler2D specular0;
+	vec4 specular;
+	sampler2D emission0;
+	vec4 emission;
+	sampler2D normal0;
+	vec4 normal;
+	
 	float emissionFactor;
 	vec3 emissionColor;
 	float shininess;
@@ -18,60 +25,205 @@ struct Material {
 };
 uniform Material material;
 uniform bool noTextures;
-
-uniform sampler2D texture_diffuse1;
-uniform sampler2D texture_specular1;
-uniform sampler2D texture_emission1;
 uniform int DrawMode;
+uniform vec3 viewPos;
 
+struct DirectionalLight {
+	vec3 direction;
+
+	vec3 ambient;
+	vec3 diffuse;
+	vec3 specular;
+};
 struct PointLight {
 	vec3 position;
-	vec3 color;
+
+	vec3 ambient;
+	vec3 diffuse;
+	vec3 specular;
+	
+	float constant;
+	float linear;
+	float quadratic;
 };
-uniform PointLight pointLight;
-uniform vec3 viewPos;
+struct SpotLight {
+	vec3 position;
+	vec3 direction;
+	
+	vec3 ambient;
+	vec3 diffuse;
+	vec3 specular;
+	
+	float cutOff;
+	float outerCutOff;
+	float constant;
+	float linear;
+	float quadratic;
+};
+
+uniform DirectionalLight dirLight;
+
+#define MAX_POINT_LIGHTS 32
+uniform int numPointLights;
+uniform PointLight[MAX_POINT_LIGHTS] pointLights;
+
+#define MAX_SPOT_LIGHTS 32
+uniform int numSpotLights;
+uniform SpotLight[MAX_SPOT_LIGHTS] spotLights;
 
 float near = 0.1; 
 float far  = 100.0;
-
 float LinearizeDepth(float depth) {
     float z = depth * 2.0 - 1.0; // back to NDC 
     return (2.0 * near * far) / (far + near - z * (far - near));	
 }
 
-void main() {
+uniform int lightingType;
+uniform bool sRGBLighting;
+vec3 calcDirLight  (vec4 diffMap, vec4 specMap, vec4 emisMap, vec4 normMap);
+vec3 calcPointLight(int pLightIndex, vec4 diffMap, vec4 specMap, vec4 emisMap, vec4 normMap);
+vec3 calcSpotLight (int sLightIndex, vec4 diffMap, vec4 specMap, vec4 emisMap, vec4 normMap);
 
+vec3 TangentLightPos;
+vec3 TangentViewPos;
+vec3 TangentFragPos;
+
+void main() {
 	// textures or material values
-	vec4 diffMap = vec4(material.diffuse,1);
-	vec4 specMap = vec4(material.specular,1);
-	vec4 emisMap = vec4(material.emission,1);
+	vec4 diffMap = material.diffuse;
+	vec4 specMap = material.specular;
+	vec4 emisMap = material.emission;
+	vec4 normMap = material.normal;
 	if(!noTextures) {
-		diffMap = texture(texture_diffuse1, frag_UV);
+		diffMap = texture(material.diffuse0, fs_in.frag_UV);
 		if(diffMap.a<0.5) discard;
-		specMap = texture(texture_specular1, frag_UV);
-		emisMap = texture(texture_emission1, frag_UV);
+		specMap = texture(material.specular0, fs_in.frag_UV);
+		emisMap = texture(material.emission0, fs_in.frag_UV);
+		normMap = texture(material.normal0, fs_in.frag_UV);
 	}
-	
-	// ambient
-    vec3 ambient = material.ambient * pointLight.color;
-  	
-    // diffuse 
-    vec3 norm = normalize(frag_NORMAL);
-    vec3 lightDir = normalize(pointLight.position - frag_POS);
-    float diff = max(dot(norm, lightDir), 0.0);
-    vec3 diffuse = diff * pointLight.color;
-    
-    // specular
-    vec3 viewDir = normalize(viewPos - frag_POS);
-    vec3 reflectDir = reflect(-lightDir, norm);  
-    float spec = pow(max(dot(viewDir, reflectDir), 0.0), 32);
-    vec3 specular = material.specular * spec * pointLight.color;
-	
-	// emission
-    vec3 glow = (emisMap.xyz * material.emissionColor) * material.emissionFactor;
-        
-    vec3 result = (ambient + diffuse + specular + glow) * diffMap.xyz;
+	TangentViewPos = fs_in.tan_MATRIX * viewPos;
+	TangentFragPos = fs_in.tan_MATRIX * fs_in.frag_POS;
+	vec3 result = vec3(0);
+	if(lightingType > 0) {
+		// directional light
+		result = calcDirLight(diffMap, specMap, emisMap, normMap);
+		// point lights
+		for(int p = 0; p < numPointLights; p++)
+			result += calcPointLight(p, diffMap, specMap, emisMap, normMap);
+		// spot lights
+		for(int s = 0; s < numSpotLights; s++)
+			result += calcSpotLight(s, diffMap, specMap, emisMap, normMap);
+		// emission
+		result += (emisMap.rgb * material.emissionColor) * material.emissionFactor;
+	} else result = diffMap.rgb;
 	
 	if(DrawMode==0) frag_COLOR = vec4(result, 1.0);
 	else if(DrawMode==1) frag_COLOR = vec4(vec3(LinearizeDepth(gl_FragCoord.z) / far), 1.0);
+}
+
+vec3 calcDirLight(vec4 diffMap, vec4 specMap, vec4 emisMap, vec4 normMap) {
+	// ambient
+    vec3 ambient = dirLight.ambient * diffMap.rgb;
+  	
+    // diffuse 
+    vec3 norm = normMap.rgb;
+	TangentLightPos = fs_in.tan_MATRIX * vec3(0);
+	// transform normal vector to range [-1,1]
+    norm = normalize(norm * 2.0 - 1.0);  // this normal is in tangent space
+    vec3 lightDir = normalize(TangentLightPos - TangentFragPos);
+    float diff = max(dot(norm, lightDir), 0.0);
+    vec3 diffuse = diff * dirLight.diffuse * diffMap.rgb;
+    
+    // specular
+    vec3 viewDir = normalize(TangentViewPos - TangentFragPos);
+	float spec = 0;
+    if(lightingType==1) {
+		vec3 reflectDir = reflect(-lightDir, norm);
+		spec = pow(max(dot(viewDir, reflectDir), 0.0), material.shininess);
+	} else {
+		vec3 halfwayDir = normalize(lightDir + viewDir);  
+        spec = pow(max(dot(norm, halfwayDir), 0.0), material.shininess);
+	}
+    vec3 specular = specMap.rgb * spec * dirLight.specular;
+	
+	return ambient + diffuse + specular;
+}
+
+vec3 calcPointLight(int pLightIndex, vec4 diffMap, vec4 specMap, vec4 emisMap, vec4 normMap) {
+	// ambient
+    vec3 ambient = pointLights[pLightIndex].ambient * diffMap.rgb;
+  	
+    // diffuse 
+    vec3 norm = normMap.rgb;
+	TangentLightPos = fs_in.tan_MATRIX * pointLights[pLightIndex].position;
+	// transform normal vector to range [-1,1]
+    norm = normalize(norm * 2.0 - 1.0);  // this normal is in tangent space
+    vec3 lightDir = normalize(TangentLightPos - TangentFragPos);
+    float diff = max(dot(norm, lightDir), 0.0);
+    vec3 diffuse = diff * dirLight.diffuse * diffMap.rgb;
+    
+    // specular
+    vec3 viewDir = normalize(TangentViewPos - TangentFragPos);
+	float spec = 0;
+    if(lightingType==1) {
+		vec3 reflectDir = reflect(-lightDir, norm);
+		spec = pow(max(dot(viewDir, reflectDir), 0.0), material.shininess);
+	} else {
+		vec3 halfwayDir = normalize(lightDir + viewDir);  
+        spec = pow(max(dot(norm, halfwayDir), 0.0), material.shininess);
+	}
+    vec3 specular = specMap.rgb * spec * pointLights[pLightIndex].specular;
+	
+	// attenuation
+	float attDistance    = length(pointLights[pLightIndex].position - fs_in.frag_POS);
+	float attenuation = 0.0;
+	if(!sRGBLighting)
+		attenuation = 1.0 / (pointLights[pLightIndex].constant + pointLights[pLightIndex].linear * attDistance + 
+				pointLights[pLightIndex].quadratic * (attDistance * attDistance));
+	else attenuation = 1.0 / attDistance;
+	
+	return (ambient + diffuse + specular) * attenuation;
+}
+
+vec3 calcSpotLight(int sLightIndex, vec4 diffMap, vec4 specMap, vec4 emisMap, vec4 normMap) {
+	// ambient
+	vec3 ambient = spotLights[sLightIndex].ambient * diffMap.rgb;
+	
+	// diffuse 
+    vec3 norm = normMap.rgb;
+	TangentLightPos = fs_in.tan_MATRIX * spotLights[sLightIndex].position;
+	// transform normal vector to range [-1,1]
+    norm = normalize(norm * 2.0 - 1.0);  // this normal is in tangent space
+    vec3 lightDir = normalize(TangentLightPos - TangentFragPos);
+    float diff = max(dot(norm, lightDir), 0.0);
+    vec3 diffuse = diff * dirLight.diffuse * diffMap.rgb;
+    
+    // specular
+    vec3 viewDir = normalize(TangentViewPos - TangentFragPos);
+	float spec = 0;
+    if(lightingType==1) {
+		vec3 reflectDir = reflect(-lightDir, norm);
+		spec = pow(max(dot(viewDir, reflectDir), 0.0), material.shininess);
+	} else {
+		vec3 halfwayDir = normalize(lightDir + viewDir);  
+        spec = pow(max(dot(norm, halfwayDir), 0.0), material.shininess);
+	}
+	vec3 specular = specMap.rgb * spec * spotLights[sLightIndex].specular;
+	
+	// spotLights[sLightIndex] (soft edges)
+    float theta = dot(lightDir, normalize(-spotLights[sLightIndex].direction)); 
+    float epsilon = (spotLights[sLightIndex].cutOff - spotLights[sLightIndex].outerCutOff);
+    float intensity = clamp((theta - spotLights[sLightIndex].outerCutOff) / epsilon, 0.0, 1.0);
+    diffuse  *= intensity;
+    specular *= intensity;
+	
+	// attenuation
+	float attDistance    = length(spotLights[sLightIndex].position - fs_in.frag_POS);
+	float attenuation = 0.0;
+	if(!sRGBLighting)
+		attenuation = 1.0 / (spotLights[sLightIndex].constant + spotLights[sLightIndex].linear * attDistance + 
+				spotLights[sLightIndex].quadratic * (attDistance * attDistance));
+	else attenuation = 1.0 / attDistance;
+	
+	return (ambient + diffuse + specular) * attenuation;
 }

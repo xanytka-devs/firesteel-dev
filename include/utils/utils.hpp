@@ -19,7 +19,7 @@ unsigned int TextureFromFile(const std::string& tPath, bool tGamma) {
         if (nrComponents == 1)
             format = GL_RED;
         else if (nrComponents == 3)
-            format = GL_RGB;
+            tGamma ? format = GL_RGB : format = GL_SRGB;
         else if (nrComponents == 4)
             format = GL_RGBA;
 

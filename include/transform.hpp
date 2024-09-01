@@ -144,24 +144,25 @@ namespace LearningOpenGL {
             }
             std::vector<Texture> texs;
             // Diffuse maps.
-            texs = loadMaterialTextures(material, aiTextureType_DIFFUSE, "texture_diffuse");
+            texs = loadMaterialTextures(material, aiTextureType_DIFFUSE, "diffuse");
             textures.insert(textures.end(), texs.begin(), texs.end());
             texs.clear();
             // Specular maps.
-            texs = loadMaterialTextures(material, aiTextureType_SPECULAR, "texture_specular");
-            textures.insert(textures.end(), texs.begin(), texs.end());
-            texs.clear();
-            // Normal maps.
-            texs = loadMaterialTextures(material, aiTextureType_HEIGHT, "texture_normal");
-            textures.insert(textures.end(), texs.begin(), texs.end());
-            texs.clear();
-            // Height maps.
-            texs = loadMaterialTextures(material, aiTextureType_AMBIENT, "texture_height");
+            texs = loadMaterialTextures(material, aiTextureType_SPECULAR, "specular");
             textures.insert(textures.end(), texs.begin(), texs.end());
             texs.clear();
             // Emission maps.
-            texs = loadMaterialTextures(material, aiTextureType_EMISSIVE, "texture_emission");
+            texs = loadMaterialTextures(material, aiTextureType_EMISSIVE, "emission");
             textures.insert(textures.end(), texs.begin(), texs.end());
+            texs.clear();
+            // Height maps.
+            texs = loadMaterialTextures(material, aiTextureType_HEIGHT, "height");
+            textures.insert(textures.end(), texs.begin(), texs.end());
+            texs.clear();
+            // Height maps.
+            texs = loadMaterialTextures(material, aiTextureType_NORMALS, "normal");
+            textures.insert(textures.end(), texs.begin(), texs.end());
+            texs.clear();
 
             return Mesh(vertices, indices, textures);
         }
@@ -184,7 +185,7 @@ namespace LearningOpenGL {
                 if(skip) continue;
                 // If texture hasn't been loaded already, load it.
                 Texture texture;
-                texture.id = TextureFromFile(this->directory + "/" + str.C_Str());
+                texture.id = TextureFromFile(this->directory + "/" + str.C_Str(), gammaCorrection);
                 texture.type = typeName;
                 texture.path = str.C_Str();
                 textures.push_back(texture);

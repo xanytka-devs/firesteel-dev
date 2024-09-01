@@ -20,6 +20,9 @@ double last_frame_fps = 0.f;
 double last_frame = 0.f;
 int frame_count = 0;
 int drawMode = 0;
+int lightningMode = 2;
+bool wireframeEnabled = false;
+bool fboSRGB = true;
 void processInput(Window* tWin, GLFWwindow* tPtr);
 void mouseCallback(GLFWwindow* window, double xposIn, double yposIn);
 void scrollCallback(GLFWwindow* window, double xoffset, double yoffset);
@@ -50,6 +53,7 @@ int main() {
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     glEnable(GL_CULL_FACE);
     glCullFace(GL_BACK);
+    fboSRGB ? glEnable(GL_FRAMEBUFFER_SRGB) : glDisable(GL_FRAMEBUFFER_SRGB);
     glfwSetCursorPosCallback(win.ptr(), mouseCallback);
     glfwSetScrollCallback(win.ptr(), scrollCallback);
     win.setCursorMode(Window::CUR_DISABLED);
@@ -60,7 +64,6 @@ int main() {
     LOG_INFO("	Version: ", reinterpret_cast<const char*>(glGetString(GL_VERSION)));
     // Shaders.
     displayLoadingMsg("Compiling shaders", &textShader, &win);
-    //Shader modelShader("res/model.vs", "res/model.fs");
     Shader modelShader("res/model.vs", "res/model.fs");
     Shader fboShader("res/fbo.vs", "res/fbo.fs");
     Shader billboardShader("res/billboard.vs", "res/billboard.fs");
@@ -68,26 +71,89 @@ int main() {
     Shader lightShader("res/model.vs", "res/light.fs");
 
     ParticleSystem pS = ParticleSystem(glm::vec3(0, 0, 0), 500, "res/particle.png");
-    PointLight pLight{ glm::vec3(-2.f, 1.5f, -2.f),glm::vec3(1.0f, 0.5f, 0.31f)};
+    DirectionalLight dLight{
+        glm::vec3(-0.2f, -1.0f, -0.3f), // Direction.
+        // Lighting params.
+        glm::vec3(0.f), // Ambient.
+        glm::vec3(0.4f), // Diffuse.
+        glm::vec3(1.f) // Specular.
+    };
+    PointLight pLight{
+        glm::vec3(-2.f, 1.5f, -2.f), // Position.
+        // Lighting params.
+        glm::vec3(0.f), // Ambient.
+        glm::vec3(1.0f, 0.5f, 0.31f), // Diffuse.
+        glm::vec3(1.f), // Specular.
+        // Attenuation.
+        1.f, // Constant.
+        0.09f, // Linear.
+        0.032f // Quadratic.
+    };
+    SpotLight sLight{
+       glm::vec3(-2.f, 1.5f, -2.f), // Position.
+       glm::vec3(0), // Direction.
+       // Lighting params.
+       glm::vec3(0.f), // Ambient.
+       glm::vec3(1.0f, 0.5f, 0.31f), // Diffuse.
+       glm::vec3(1.f), // Specular.
+       // Attenuation.
+       glm::cos(glm::radians(12.5f)), // Cutoff.
+       glm::cos(glm::radians(17.5f)), // Outer cutoff.
+       1.f, // Constant.
+       0.09f, // Linear.
+       0.032f // Quadratic.
+    };
+    modelShader.enable();
+    modelShader.setFloat("material.emissionFactor", 1);
+    modelShader.setFloat("material.shininess", 32);
+
+    modelShader.setVec3("dirLight.direction",     dLight.direction);
+    modelShader.setVec3("dirLight.ambient",       dLight.ambient);
+    modelShader.setVec3("dirLight.diffuse",       dLight.diffuse);
+    modelShader.setVec3("dirLight.specular",      dLight.specular);
+
+    modelShader.setInt(  "numPointLights",            1);
+    modelShader.setVec3( "pointLights[0].position",   pLight.position);
+    modelShader.setVec3( "pointLights[0].ambient",    pLight.ambient);
+    modelShader.setVec3( "pointLights[0].diffuse",    pLight.diffuse);
+    modelShader.setVec3( "pointLights[0].specular",   pLight.specular);
+    modelShader.setFloat("pointLights[0].constant",   pLight.constant);
+    modelShader.setFloat("pointLights[0].linear",     pLight.linear);
+    modelShader.setFloat("pointLights[0].quadratic",  pLight.quadratic);
+
+    modelShader.setInt(  "numSpotLights",             1);
+    modelShader.setVec3( "spotLights[0].position",    sLight.position);
+    modelShader.setVec3( "spotLights[0].direction",   sLight.direction);
+    modelShader.setVec3( "spotLights[0].ambient",     sLight.ambient);
+    modelShader.setVec3( "spotLights[0].diffuse",     sLight.diffuse);
+    modelShader.setVec3( "spotLights[0].specular",    sLight.specular);
+    modelShader.setFloat("spotLights[0].cutOff",      sLight.cutOff);
+    modelShader.setFloat("spotLights[0].outerCutOff", sLight.outerCutOff);
+    modelShader.setFloat("spotLights[0].constant",    sLight.constant);
+    modelShader.setFloat("spotLights[0].linear",      sLight.linear);
+    modelShader.setFloat("spotLights[0].quadratic",   sLight.quadratic);
 
     // Load models.
+    //displayLoadingMsg("Loading city", &textShader, &win);
+    //Transform city("res/city/scene.gltf");
     displayLoadingMsg("Loading backpack", &textShader, &win);
-    Transform backpack("res/backpack/backpack.obj");
+    Transform backpack("res/backpack/backpack.obj", fboSRGB);
     displayLoadingMsg("Loading quad", &textShader, &win);
-    Transform quad("res/primitives/quad.obj");
+    Transform quad("res/primitives/quad.obj", fboSRGB);
     displayLoadingMsg("Loading cube", &textShader, &win);
-    Transform cube("res/primitives/cube.obj");
+    Transform cube("res/primitives/cube.obj", fboSRGB);
     displayLoadingMsg("Loading box", &textShader, &win);
-    Transform box("res/box/box.fbx");
+    Transform box("res/box/box.fbx", fboSRGB);
     Texture billTex;
     billTex.id = TextureFromFile("res/yeah.png");
     billTex.type = "texture_diffuse";
     billTex.path = "yeah.png";
     // Framebuffer.
     displayLoadingMsg("Creating FBO", &textShader, &win);
-    Framebuffer fbo(win.getSize());
+    Framebuffer fbo(win.getSize(), true);
     fbo.quad();
     if(!fbo.isComplete()) LOG_ERRR("FBO isn't complete");
+    camera.farPlane = 10000;
     // Rendering.
     while(win.isOpen()) {
         //Per-frame time logic.
@@ -104,40 +170,47 @@ int main() {
         processInput(&win, win.ptr());
         fbo.bind();
         win.clearBuffers();
+        wireframeEnabled ? glPolygonMode(GL_FRONT_AND_BACK, GL_LINE) : glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+        fboSRGB ? glEnable(GL_FRAMEBUFFER_SRGB) : glDisable(GL_FRAMEBUFFER_SRGB);
         // View/projection transformations.
         glm::mat4 projection = camera.getProjection(win.aspect(), 1);
         glm::mat4 view = camera.getView();
         glm::mat4 model = glm::mat4(1.0f);
+        sLight.position = camera.pos;
+        sLight.direction = camera.Forward;
+        modelShader.enable();
+        modelShader.setInt("lightingType", lightningMode);
+        modelShader.setBool("sRGBLighting", fboSRGB);
+        modelShader.setVec3("spotLights[0].position", sLight.position);
+        modelShader.setVec3("spotLights[0].direction", sLight.direction);
         // Render backpack.
         {
+            model = glm::mat4(1.0f);
             model = glm::translate(model, glm::vec3(0.f, 0.f, -1.f));
             model = glm::scale(model, glm::vec3(0.5f));
             model = glm::rotate(model, float(glm::radians(0.f)), glm::vec3(1, 0, 0));
             model = glm::rotate(model, float(glm::radians(0.f)), glm::vec3(0, 1, 0));
             model = glm::rotate(model, float(glm::radians(0.f)), glm::vec3(0, 0, 1));
-            modelShader.enable();
             modelShader.setInt("DrawMode", drawMode);
             modelShader.setMat4("projection", projection);
             modelShader.setMat4("view", view);
             modelShader.setMat4("model", model);
-            modelShader.setVec3("pointLight.position", pLight.position);
-            modelShader.setVec3("pointLight.color", pLight.color);
             modelShader.setVec3("viewPos", camera.pos);
             modelShader.setVec3("material.emissionColor", glm::vec3(0));
+            //city.draw(modelShader);
             backpack.draw(modelShader);
         }
         // Render box.
         {
             model = glm::mat4(1.0f);
-            model = glm::translate(model, glm::vec3(-1.f, 0.f, 0.f));
+            model = glm::translate(model, glm::vec3(-2.f, 0.f, 1.f));
             model = glm::scale(model, glm::vec3(1));
             model = glm::rotate(model, float(glm::radians(45.f)), glm::vec3(1, 0, 0));
             model = glm::rotate(model, float(glm::radians(45.f)), glm::vec3(0, 1, 0));
             model = glm::rotate(model, float(glm::radians(0.f)), glm::vec3(0, 0, 1));
             modelShader.enable();
             modelShader.setMat4("model", model);
-            modelShader.setVec3("material.emissionColor", pLight.color);
-            modelShader.setFloat("material.emissionFactor", 1);
+            modelShader.setVec3("material.emissionColor", glm::vec3(1) - pLight.diffuse);
             box.draw(modelShader);
         }
         // Draw light cube.
@@ -153,7 +226,7 @@ int main() {
             lightShader.setMat4("projection", projection);
             lightShader.setMat4("view", view);
             lightShader.setMat4("model", model);
-            lightShader.setVec3("color", pLight.color);
+            lightShader.setVec3("color", pLight.diffuse);
             cube.draw(lightShader);
         }
         // Draw billboard.
@@ -195,8 +268,11 @@ int main() {
         {
             fbo.unbind();
             win.clearBuffers();
+            glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
             fboShader.enable();
+            fboShader.setBool("sRGBLighting", fboSRGB);
             fboShader.setInt("AAMethod", 1);
+            fboShader.setFloat("exposure", 1);
             fboShader.setVec2("screenSize", win.getSize());
             fbo.drawQuad(&fboShader);
         }
@@ -211,8 +287,11 @@ int main() {
             t.draw(&textShader, std::string("[V] VSync: ") + (win.getVSync() ? "ON" : "OFF"), win.getSize(), glm::vec2(8.0f, 538.0f), glm::vec2(1.f), glm::vec3(0));
             t.draw(&textShader, std::string("[V] VSync: ") + (win.getVSync() ? "ON" : "OFF"), win.getSize(), glm::vec2(10.0f, 540.0f), glm::vec2(1.f), glm::vec3(1, 0, 0));
             
-            t.draw(&textShader, "[Wheel] FOV: " + std::to_string((int)camera.fov), win.getSize(), glm::vec2(8.0f, 523.0f), glm::vec2(1.f), glm::vec3(0));
-            t.draw(&textShader, "[Wheel] FOV: " + std::to_string((int)camera.fov), win.getSize(), glm::vec2(10.0f, 525.0f), glm::vec2(1.f), glm::vec3(1, 0, 0));
+            t.draw(&textShader, std::string("[6] sRGB Space: ") + (fboSRGB ? "ON" : "OFF"), win.getSize(), glm::vec2(8.0f, 523.0f), glm::vec2(1.f), glm::vec3(0));
+            t.draw(&textShader, std::string("[6] sRGB Space: ") + (fboSRGB ? "ON" : "OFF"), win.getSize(), glm::vec2(10.0f, 525.0f), glm::vec2(1.f), glm::vec3(1, 0, 0));
+
+            t.draw(&textShader, "[Wheel] FOV: " + std::to_string((int)camera.fov), win.getSize(), glm::vec2(8.0f, 508.0f), glm::vec2(1.f), glm::vec3(0));
+            t.draw(&textShader, "[Wheel] FOV: " + std::to_string((int)camera.fov), win.getSize(), glm::vec2(10.0f, 510.0f), glm::vec2(1.f), glm::vec3(1, 0, 0));
         }
         win.update();
     }
@@ -249,9 +328,12 @@ void processInput(Window* tWin, GLFWwindow* tPtr) {
         camera.pos.y += velocity;
     if (glfwGetKey(tPtr, GLFW_KEY_LEFT_CONTROL) == GLFW_PRESS)
         camera.pos.y -= velocity;
-    if (glfwGetKey(tPtr, GLFW_KEY_1) == GLFW_PRESS) drawMode = 0;
-    if (glfwGetKey(tPtr, GLFW_KEY_2) == GLFW_PRESS) drawMode = 1;
-
+    if (glfwGetKey(tPtr, GLFW_KEY_1) == GLFW_PRESS) { drawMode = 0; lightningMode = 2; }
+    if (glfwGetKey(tPtr, GLFW_KEY_2) == GLFW_PRESS) { drawMode = 1; wireframeEnabled = false; }
+    if (glfwGetKey(tPtr, GLFW_KEY_3) == GLFW_PRESS) { wireframeEnabled = !wireframeEnabled; }
+    if (glfwGetKey(tPtr, GLFW_KEY_4) == GLFW_PRESS) { lightningMode = 0; drawMode = 0; }
+    if (glfwGetKey(tPtr, GLFW_KEY_5) == GLFW_PRESS) { lightningMode = 1; drawMode = 0; }
+    if (glfwGetKey(tPtr, GLFW_KEY_6) == GLFW_PRESS) { fboSRGB = !fboSRGB; }
 }
 float MouseSensitivity = 0.1f;
 void mouseCallback(GLFWwindow* window, double xposIn, double yposIn) {
@@ -280,6 +362,10 @@ void mouseCallback(GLFWwindow* window, double xposIn, double yposIn) {
         camera.rot.y = 89.0f;
     if (camera.rot.y < -89.0f)
         camera.rot.y = -89.0f;
+    if (camera.rot.z >= 360.0f)
+        camera.rot.z -= 360.0f;
+    if (camera.rot.z <= -360.0f)
+        camera.rot.z += 360.0f;
 
     // update Front, Right and Up Vectors using the updated Euler angles
     camera.update();
@@ -292,15 +378,21 @@ void scrollCallback(GLFWwindow* window, double xoffset, double yoffset) {
         camera.fov = 100.0f;
 }
 static const std::string currentDateTime() {
-    time_t     now = time(0);
-    struct tm  tstruct;
-    char       buf[80];
-    tstruct = *localtime(&now);
-    // Visit http://en.cppreference.com/w/cpp/chrono/c/strftime
-    // for more information about date/time format
-    strftime(buf, sizeof(buf), "%Y-%m-%d %X", &tstruct);
+    struct tm newtime;
+    __time64_t long_time;
+    char timebuf[26];
+    errno_t err;
 
-    return buf;
+    // Get time as 64-bit integer.
+    _time64(&long_time);
+    // Convert to local time.
+    err = _localtime64_s(&newtime, &long_time);
+    if(err) {
+        LOG_WARN("Invalid argument to _localtime64_s.");
+        return "invalid";
+    }
+    strftime(timebuf, sizeof(timebuf), "%d.%m.%Y %X", &newtime);
+    return timebuf;
 }
 static void displayLoadingMsg(std::string t_Msg, Shader* t_Shader, Window* t_Window) {
     t_Window->clearBuffers();

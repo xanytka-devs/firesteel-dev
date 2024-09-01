@@ -224,6 +224,9 @@ vec3 NFAA() {
     return ((Scene0 + Scene1 + Scene2 + Scene3 + Scene4) * 0.2).rgb;
 }
 
+uniform bool sRGBLighting;
+uniform float exposure;
+
 void main() {
 	////Kernel operations.
 	//vec2 offsets[9] = vec2[](
@@ -269,9 +272,13 @@ void main() {
 	//else if(colSum<0.75 && colSum>0.25)
 	//	FragColor = vec4(1, 0, 0, 1);
 	
-	//Just output texture.
+	// anti-alising
     vec3 col = texture(screenTexture, frag_UV).rgb;
 	if(AAMethod==1) col = FXAA();
 	else if(AAMethod==2) col = NFAA();
-    FragColor = vec4(col, 1.0);
+	
+    // exposure tone mapping
+    vec3 mapped = vec3(1.0) - exp(-col * exposure);
+	if(!sRGBLighting) mapped = pow(mapped, vec3(1.0 / 2.2));
+    FragColor = vec4(mapped, 1.0);
 }

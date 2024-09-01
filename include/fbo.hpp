@@ -4,14 +4,15 @@
 namespace LearningOpenGL {
     class Framebuffer {
     public:
-        Framebuffer(int tWidth, int tHeight) {
+        Framebuffer(int tWidth, int tHeight, bool hdrSupport = false) {
             //FBO creation.
             glGenFramebuffers(1, &fbo);
             glBindFramebuffer(GL_FRAMEBUFFER, fbo);
             //Framebuffer's texture.
             glGenTextures(1, &fboTex);
             glBindTexture(GL_TEXTURE_2D, fboTex);
-            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, tWidth, tHeight, 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
+            if(hdrSupport) glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB16F, tWidth, tHeight, 0, GL_RGB, GL_FLOAT, NULL);
+            else glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, tWidth, tHeight, 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
             glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, fboTex, 0);
@@ -21,14 +22,15 @@ namespace LearningOpenGL {
             glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, tWidth, tHeight);
             glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, rbo);
         }
-        Framebuffer(glm::vec2 tSize) {
+        Framebuffer(glm::vec2 tSize, bool hdrSupport = false) {
             //FBO creation.
             glGenFramebuffers(1, &fbo);
             glBindFramebuffer(GL_FRAMEBUFFER, fbo);
             //Framebuffer's texture.
             glGenTextures(1, &fboTex);
             glBindTexture(GL_TEXTURE_2D, fboTex);
-            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, static_cast<GLuint>(tSize.x), static_cast<GLuint>(tSize.y), 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
+            if(hdrSupport) glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB16F, static_cast<GLuint>(tSize.x), static_cast<GLuint>(tSize.y), 0, GL_RGB, GL_FLOAT, NULL);
+            else glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, static_cast<GLuint>(tSize.x), static_cast<GLuint>(tSize.y), 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
             glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, fboTex, 0);
@@ -37,6 +39,43 @@ namespace LearningOpenGL {
             glBindRenderbuffer(GL_RENDERBUFFER, rbo);
             glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, static_cast<GLuint>(tSize.x), static_cast<GLuint>(tSize.y));
             glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, rbo);
+        }
+
+        void scale(int tWidth, int tHeight, bool hdrSupport = false) const {
+            //Resize FBO.
+            glBindTexture(GL_TEXTURE_2D, fboTex);
+            if(hdrSupport) glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB16F, tWidth, tHeight, 0, GL_RGB, GL_FLOAT, NULL);
+            else glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, tWidth, tHeight, 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+            glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, fboTex, 0);
+            //Framebuffer's render buffer.
+            glBindRenderbuffer(GL_RENDERBUFFER, rbo);
+            glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, tWidth, tHeight);
+            glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, rbo);
+            //Unbind framebuffer.
+            glBindFramebuffer(GL_FRAMEBUFFER, 0);
+            glBindTexture(GL_TEXTURE_2D, 0);
+            glBindRenderbuffer(GL_RENDERBUFFER, 0);
+        }
+
+        void scale(glm::vec2 tSize, bool hdrSupport = false) const {
+            //Resize FBO.
+            glBindTexture(GL_TEXTURE_2D, fboTex);
+            if(hdrSupport) glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB16F, static_cast<GLuint>(tSize.x), static_cast<GLuint>(tSize.y), 0, GL_RGB, GL_FLOAT, NULL);
+            else glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, static_cast<GLuint>(tSize.x), static_cast<GLuint>(tSize.y), 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+            glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, fboTex, 0);
+            //Framebuffer's render buffer.
+            glBindRenderbuffer(GL_RENDERBUFFER, rbo);
+            glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8,
+                static_cast<GLsizei>(tSize.x), static_cast<GLsizei>(tSize.y));
+            glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, rbo);
+            //Unbind framebuffer.
+            glBindFramebuffer(GL_FRAMEBUFFER, 0);
+            glBindTexture(GL_TEXTURE_2D, 0);
+            glBindRenderbuffer(GL_RENDERBUFFER, 0);
         }
 
         bool isComplete() const {
