@@ -4,6 +4,9 @@ out vec4 frag_COLOR;
 in VS_OUT {
     vec3 frag_POS;
     vec2 frag_UV;
+    vec3 frag_NORMAL;
+    vec3 frag_TAN;
+    vec3 frag_BITAN;
     mat3 tan_MATRIX;
 } fs_in;
 
@@ -89,11 +92,12 @@ vec3 TangentViewPos;
 vec3 TangentFragPos;
 
 void main() {
-	// textures or material values
+	// material values
 	vec4 diffMap = material.diffuse;
 	vec4 specMap = material.specular;
 	vec4 emisMap = material.emission;
 	vec4 normMap = material.normal;
+	// texture values
 	if(!noTextures) {
 		diffMap = texture(material.diffuse0, fs_in.frag_UV);
 		if(diffMap.a<0.5) discard;
@@ -101,24 +105,37 @@ void main() {
 		emisMap = texture(material.emission0, fs_in.frag_UV);
 		normMap = texture(material.normal0, fs_in.frag_UV);
 	}
+	// tangets
 	TangentViewPos = fs_in.tan_MATRIX * viewPos;
 	TangentFragPos = fs_in.tan_MATRIX * fs_in.frag_POS;
+	// normal
+	// transform normal vector to range [-1,1]
+    vec4 norm = normalize(normMap * 2.0 - 1.0);  // this normal is in tangent space
+	
 	vec3 result = vec3(0);
 	if(lightingType > 0) {
 		// directional light
-		result = calcDirLight(diffMap, specMap, emisMap, normMap);
+		result = calcDirLight(diffMap, specMap, emisMap, norm);
 		// point lights
 		for(int p = 0; p < numPointLights; p++)
-			result += calcPointLight(p, diffMap, specMap, emisMap, normMap);
+			result += calcPointLight(p, diffMap, specMap, emisMap, norm);
 		// spot lights
 		for(int s = 0; s < numSpotLights; s++)
-			result += calcSpotLight(s, diffMap, specMap, emisMap, normMap);
+			result += calcSpotLight(s, diffMap, specMap, emisMap, norm);
 		// emission
 		result += (emisMap.rgb * material.emissionColor) * material.emissionFactor;
 	} else result = diffMap.rgb;
-	
-	if(DrawMode==0) frag_COLOR = vec4(result, 1.0);
-	else if(DrawMode==1) frag_COLOR = vec4(vec3(LinearizeDepth(gl_FragCoord.z) / far), 1.0);
+	switch(DrawMode) {
+		case 0: frag_COLOR = vec4(result, 1.0);										break;
+		case 1: frag_COLOR = vec4(vec3(LinearizeDepth(gl_FragCoord.z) / far), 1.0); break;
+		case 2: frag_COLOR = specMap;												break;
+		case 3: frag_COLOR = vec4(fs_in.frag_NORMAL * 0.5 + 0.5,1.0);				break;
+		case 4: frag_COLOR = norm;													break;
+		case 5: frag_COLOR = normMap;												break;
+		case 6: frag_COLOR = vec4(fs_in.frag_TAN * 0.5 + 0.5,1.0);					break;
+		case 7: frag_COLOR = vec4(fs_in.frag_BITAN * 0.5 + 0.5,1.0);				break;
+		case 8: frag_COLOR = emisMap;												break;
+	}
 }
 
 vec3 calcDirLight(vec4 diffMap, vec4 specMap, vec4 emisMap, vec4 normMap) {
@@ -127,23 +144,18 @@ vec3 calcDirLight(vec4 diffMap, vec4 specMap, vec4 emisMap, vec4 normMap) {
   	
     // diffuse 
     vec3 norm = normMap.rgb;
-	TangentLightPos = fs_in.tan_MATRIX * vec3(0);
-	// transform normal vector to range [-1,1]
-    norm = normalize(norm * 2.0 - 1.0);  // this normal is in tangent space
-    vec3 lightDir = normalize(TangentLightPos - TangentFragPos);
+    vec3 lightDir = normalize(-dirLight.direction);
     float diff = max(dot(norm, lightDir), 0.0);
     vec3 diffuse = diff * dirLight.diffuse * diffMap.rgb;
     
     // specular
     vec3 viewDir = normalize(TangentViewPos - TangentFragPos);
 	float spec = 0;
-    if(lightingType==1) {
-		vec3 reflectDir = reflect(-lightDir, norm);
-		spec = pow(max(dot(viewDir, reflectDir), 0.0), material.shininess);
-	} else {
-		vec3 halfwayDir = normalize(lightDir + viewDir);  
-        spec = pow(max(dot(norm, halfwayDir), 0.0), material.shininess);
-	}
+	vec3 reflectDir = reflect(-lightDir, norm);
+	spec = pow(max(dot(viewDir, reflectDir), 0.0), material.shininess);
+	vec3 halfwayDir = normalize(lightDir + viewDir);
+	if(lightingType==3) spec += pow(max(dot(norm, halfwayDir), 0.0), material.shininess);
+    if(lightingType==2) spec = pow(max(dot(norm, halfwayDir), 0.0), material.shininess);
     vec3 specular = specMap.rgb * spec * dirLight.specular;
 	
 	return ambient + diffuse + specular;
@@ -153,11 +165,9 @@ vec3 calcPointLight(int pLightIndex, vec4 diffMap, vec4 specMap, vec4 emisMap, v
 	// ambient
     vec3 ambient = pointLights[pLightIndex].ambient * diffMap.rgb;
   	
-    // diffuse 
-    vec3 norm = normMap.rgb;
+    // diffuse
 	TangentLightPos = fs_in.tan_MATRIX * pointLights[pLightIndex].position;
-	// transform normal vector to range [-1,1]
-    norm = normalize(norm * 2.0 - 1.0);  // this normal is in tangent space
+    vec3 norm = normMap.rgb;
     vec3 lightDir = normalize(TangentLightPos - TangentFragPos);
     float diff = max(dot(norm, lightDir), 0.0);
     vec3 diffuse = diff * dirLight.diffuse * diffMap.rgb;
@@ -165,13 +175,11 @@ vec3 calcPointLight(int pLightIndex, vec4 diffMap, vec4 specMap, vec4 emisMap, v
     // specular
     vec3 viewDir = normalize(TangentViewPos - TangentFragPos);
 	float spec = 0;
-    if(lightingType==1) {
-		vec3 reflectDir = reflect(-lightDir, norm);
-		spec = pow(max(dot(viewDir, reflectDir), 0.0), material.shininess);
-	} else {
-		vec3 halfwayDir = normalize(lightDir + viewDir);  
-        spec = pow(max(dot(norm, halfwayDir), 0.0), material.shininess);
-	}
+	vec3 reflectDir = reflect(-lightDir, norm);
+	spec = pow(max(dot(viewDir, reflectDir), 0.0), material.shininess);
+	vec3 halfwayDir = normalize(lightDir + viewDir);
+	if(lightingType==3) spec += pow(max(dot(norm, halfwayDir), 0.0), material.shininess);
+    if(lightingType==2) spec = pow(max(dot(norm, halfwayDir), 0.0), material.shininess);
     vec3 specular = specMap.rgb * spec * pointLights[pLightIndex].specular;
 	
 	// attenuation
@@ -189,11 +197,9 @@ vec3 calcSpotLight(int sLightIndex, vec4 diffMap, vec4 specMap, vec4 emisMap, ve
 	// ambient
 	vec3 ambient = spotLights[sLightIndex].ambient * diffMap.rgb;
 	
-	// diffuse 
-    vec3 norm = normMap.rgb;
+	// diffuse
 	TangentLightPos = fs_in.tan_MATRIX * spotLights[sLightIndex].position;
-	// transform normal vector to range [-1,1]
-    norm = normalize(norm * 2.0 - 1.0);  // this normal is in tangent space
+    vec3 norm = normMap.rgb;
     vec3 lightDir = normalize(TangentLightPos - TangentFragPos);
     float diff = max(dot(norm, lightDir), 0.0);
     vec3 diffuse = diff * dirLight.diffuse * diffMap.rgb;
@@ -201,13 +207,11 @@ vec3 calcSpotLight(int sLightIndex, vec4 diffMap, vec4 specMap, vec4 emisMap, ve
     // specular
     vec3 viewDir = normalize(TangentViewPos - TangentFragPos);
 	float spec = 0;
-    if(lightingType==1) {
-		vec3 reflectDir = reflect(-lightDir, norm);
-		spec = pow(max(dot(viewDir, reflectDir), 0.0), material.shininess);
-	} else {
-		vec3 halfwayDir = normalize(lightDir + viewDir);  
-        spec = pow(max(dot(norm, halfwayDir), 0.0), material.shininess);
-	}
+	vec3 reflectDir = reflect(-lightDir, norm);
+	spec = pow(max(dot(viewDir, reflectDir), 0.0), material.shininess);
+	vec3 halfwayDir = normalize(lightDir + viewDir);
+	if(lightingType==3) spec += pow(max(dot(norm, halfwayDir), 0.0), material.shininess);
+    if(lightingType==2) spec = pow(max(dot(norm, halfwayDir), 0.0), material.shininess);
 	vec3 specular = specMap.rgb * spec * spotLights[sLightIndex].specular;
 	
 	// spotLights[sLightIndex] (soft edges)

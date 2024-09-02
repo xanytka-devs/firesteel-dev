@@ -8,6 +8,9 @@ layout (location = 4) in vec3 aBitangent;
 out VS_OUT {
     vec3 frag_POS;
     vec2 frag_UV;
+    vec3 frag_NORMAL;
+    vec3 frag_TAN;
+    vec3 frag_BITAN;
     mat3 tan_MATRIX;
 } vs_out;
 
@@ -18,6 +21,9 @@ uniform mat4 projection;
 void main() {	
 	vs_out.frag_POS = vec3(model * vec4(aPos, 1.0));
 	vs_out.frag_UV = aUV;
+	vs_out.frag_NORMAL = aNormal;
+	vs_out.frag_TAN = aTangent;
+	vs_out.frag_BITAN = aBitangent;
 	
 	mat3 normalMatrix = transpose(inverse(mat3(model)));
     vec3 T = normalize(normalMatrix * aTangent);

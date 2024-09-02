@@ -45,6 +45,7 @@ namespace LearningOpenGL {
         glm::vec3 diffuse{ 1.f };
         glm::vec3 specular{ 0.5f };
         glm::vec3 emission{ 0.f };
+        glm::vec3 normal{ 1.f };
         glm::vec3 height{ 0.f };
 
         /// Constructor with textures.
@@ -73,12 +74,24 @@ namespace LearningOpenGL {
             unsigned int emisNr = 0;
             shader.enable();
             shader.setVec4("material.ambient", glm::vec4(ambient, 1));
+
             shader.setVec4("material.diffuse", glm::vec4(diffuse, 1));
+            shader.setInt("material.diffuse0", 0);
+
             shader.setVec4("material.specular", glm::vec4(specular, 1));
+            shader.setInt("material.specular0", 0);
+
             shader.setVec4("material.emission", glm::vec4(emission, 1));
+            shader.setInt("material.emission0", 0);
+
+            shader.setVec4("material.normal", glm::vec4(normal, 1));
+            shader.setInt("material.normal0", 0);
+
             shader.setBool("noTextures", true);
             if(!mNoTextures) {
                 shader.setBool("noTextures", false);
+                glActiveTexture(GL_TEXTURE0);
+                glBindTexture(GL_TEXTURE_2D, 0);
                 for (unsigned int i = 0; i < textures.size(); i++) {
                     glActiveTexture(GL_TEXTURE0 + i);
                     // Retrieve texture number.
@@ -90,12 +103,12 @@ namespace LearningOpenGL {
                         number = std::to_string(specularNr++);
                     else if (name == "normal")
                         number = std::to_string(normalNr++);
-                    else if (name == "height")
-                        number = std::to_string(heightNr++);
                     else if (name == "emission")
                         number = std::to_string(emisNr++);
+                    else if (name == "height")
+                        number = std::to_string(heightNr++);
                     // Now set the sampler to the correct texture unit.
-                    glUniform1i(glGetUniformLocation(shader.ID, ("material." + name + number).c_str()), i);
+                    shader.setInt("material." + name + number, i);
                     glBindTexture(GL_TEXTURE_2D, textures[i].id);
                 }
             }

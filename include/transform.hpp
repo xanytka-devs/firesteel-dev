@@ -44,7 +44,7 @@ namespace LearningOpenGL {
         void loadModel(std::string const& tPath) {
             // Read file via ASSIMP.
             Assimp::Importer importer;
-            const aiScene* scene = importer.ReadFile(tPath, aiProcess_Triangulate | aiProcess_GenSmoothNormals | aiProcess_FlipUVs | aiProcess_CalcTangentSpace);
+            const aiScene* scene = importer.ReadFile(tPath, aiProcess_Triangulate | aiProcess_FlipUVs | aiProcess_CalcTangentSpace);
             // Check for errors.
             if (!scene || scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE || !scene->mRootNode) {
                 LOG_ERRR("Error while importing model: ", importer.GetErrorString());
@@ -151,16 +151,16 @@ namespace LearningOpenGL {
             texs = loadMaterialTextures(material, aiTextureType_SPECULAR, "specular");
             textures.insert(textures.end(), texs.begin(), texs.end());
             texs.clear();
+            // Normal maps.
+            texs = loadMaterialTextures(material, aiTextureType_HEIGHT, "normal");
+            textures.insert(textures.end(), texs.begin(), texs.end());
+            texs.clear();
             // Emission maps.
             texs = loadMaterialTextures(material, aiTextureType_EMISSIVE, "emission");
             textures.insert(textures.end(), texs.begin(), texs.end());
             texs.clear();
             // Height maps.
-            texs = loadMaterialTextures(material, aiTextureType_HEIGHT, "height");
-            textures.insert(textures.end(), texs.begin(), texs.end());
-            texs.clear();
-            // Height maps.
-            texs = loadMaterialTextures(material, aiTextureType_NORMALS, "normal");
+            texs = loadMaterialTextures(material, aiTextureType_AMBIENT, "height");
             textures.insert(textures.end(), texs.begin(), texs.end());
             texs.clear();
 
