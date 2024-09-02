@@ -122,9 +122,9 @@ namespace LearningOpenGL {
             glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
         }
 
-        void render(Shader t_shader) const {
+        void draw(Shader* t_shader) const {
             glDepthFunc(GL_LEQUAL);
-            t_shader.enable();
+            t_shader->enable();
             //Skybox cube.
             glBindVertexArray(m_skybox_vao);
             glActiveTexture(GL_TEXTURE0);
@@ -144,6 +144,8 @@ namespace LearningOpenGL {
             glDeleteBuffers(1, &m_skybox_vbo);
             clear();
         }
+
+        ~Cubemap() { remove(); }
     private:
         unsigned int m_skybox_vao, m_skybox_vbo;
         unsigned int m_id;

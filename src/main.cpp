@@ -7,6 +7,7 @@
 #include <time.h>
 #include "../include/particles.hpp"
 #include "../include/light.hpp"
+#include "../include/cubemap.hpp"
 using namespace LearningOpenGL;
 
 Camera camera(glm::vec3(0.0f, 0.0f, 3.0f), glm::vec3(0, 0, -90));
@@ -73,6 +74,7 @@ int main() {
     Shader fboShader("res/fbo.vs", "res/fbo.fs");
     Shader billboardShader("res/billboard.vs", "res/billboard.fs");
     Shader particlesShader("res/particles.vs", "res/particles.fs");
+    Shader skyShader("res/skybox.vs", "res/skybox.fs");
 
     ParticleSystem pS = ParticleSystem(glm::vec3(0, 0, 0), 500, "res/particle.png");
     DirectionalLight dLight{
@@ -107,35 +109,37 @@ int main() {
        0.09f, // Linear.
        0.032f // Quadratic.
     };
-    modelShader.enable();
-    modelShader.setFloat("material.emissionFactor", 1);
-    modelShader.setFloat("material.shininess", 64);
+    {
+        modelShader.enable();
+        modelShader.setFloat("material.emissionFactor", 1);
+        modelShader.setFloat("material.shininess", 64);
 
-    modelShader.setVec3("dirLight.direction",     dLight.direction);
-    modelShader.setVec3("dirLight.ambient",       dLight.ambient);
-    modelShader.setVec3("dirLight.diffuse",       dLight.diffuse);
-    modelShader.setVec3("dirLight.specular",      dLight.specular);
+        modelShader.setVec3("dirLight.direction", dLight.direction);
+        modelShader.setVec3("dirLight.ambient", dLight.ambient);
+        modelShader.setVec3("dirLight.diffuse", dLight.diffuse);
+        modelShader.setVec3("dirLight.specular", dLight.specular);
 
-    modelShader.setInt(  "numPointLights",            1);
-    modelShader.setVec3( "pointLights[0].position",   pLight.position);
-    modelShader.setVec3( "pointLights[0].ambient",    pLight.ambient);
-    modelShader.setVec3( "pointLights[0].diffuse",    pLight.diffuse);
-    modelShader.setVec3( "pointLights[0].specular",   pLight.specular);
-    modelShader.setFloat("pointLights[0].constant",   pLight.constant);
-    modelShader.setFloat("pointLights[0].linear",     pLight.linear);
-    modelShader.setFloat("pointLights[0].quadratic",  pLight.quadratic);
+        modelShader.setInt("numPointLights", 1);
+        modelShader.setVec3("pointLights[0].position", pLight.position);
+        modelShader.setVec3("pointLights[0].ambient", pLight.ambient);
+        modelShader.setVec3("pointLights[0].diffuse", pLight.diffuse);
+        modelShader.setVec3("pointLights[0].specular", pLight.specular);
+        modelShader.setFloat("pointLights[0].constant", pLight.constant);
+        modelShader.setFloat("pointLights[0].linear", pLight.linear);
+        modelShader.setFloat("pointLights[0].quadratic", pLight.quadratic);
 
-    modelShader.setInt(  "numSpotLights",             1);
-    modelShader.setVec3( "spotLights[0].position",    sLight.position);
-    modelShader.setVec3( "spotLights[0].direction",   sLight.direction);
-    modelShader.setVec3( "spotLights[0].ambient",     sLight.ambient);
-    modelShader.setVec3( "spotLights[0].diffuse",     sLight.diffuse);
-    modelShader.setVec3( "spotLights[0].specular",    sLight.specular);
-    modelShader.setFloat("spotLights[0].cutOff",      sLight.cutOff);
-    modelShader.setFloat("spotLights[0].outerCutOff", sLight.outerCutOff);
-    modelShader.setFloat("spotLights[0].constant",    sLight.constant);
-    modelShader.setFloat("spotLights[0].linear",      sLight.linear);
-    modelShader.setFloat("spotLights[0].quadratic",   sLight.quadratic);
+        modelShader.setInt("numSpotLights", 1);
+        modelShader.setVec3("spotLights[0].position", sLight.position);
+        modelShader.setVec3("spotLights[0].direction", sLight.direction);
+        modelShader.setVec3("spotLights[0].ambient", sLight.ambient);
+        modelShader.setVec3("spotLights[0].diffuse", sLight.diffuse);
+        modelShader.setVec3("spotLights[0].specular", sLight.specular);
+        modelShader.setFloat("spotLights[0].cutOff", sLight.cutOff);
+        modelShader.setFloat("spotLights[0].outerCutOff", sLight.outerCutOff);
+        modelShader.setFloat("spotLights[0].constant", sLight.constant);
+        modelShader.setFloat("spotLights[0].linear", sLight.linear);
+        modelShader.setFloat("spotLights[0].quadratic", sLight.quadratic);
+    }
 
     // Load models.
     //displayLoadingMsg("Loading city", &textShader, &win);
@@ -154,6 +158,11 @@ int main() {
     pointLightBillTex.id = TextureFromFile("res/billboards/point_light.png");
     pointLightBillTex.type = "texture_diffuse";
     pointLightBillTex.path = "res/billboards/point_light.png";
+    // Cubemap.
+    displayLoadingMsg("Creating cubemap", &textShader, &win);
+    Cubemap sky;
+    sky.load_m("res/FortPoint", "posz.jpg", "negz.jpg", "posy.jpg", "negy.jpg", "posx.jpg", "negx.jpg");
+    sky.initialize(100);
     // Framebuffer.
     displayLoadingMsg("Creating FBO", &textShader, &win);
     Framebuffer fbo(win.getSize(), true);
@@ -204,7 +213,7 @@ int main() {
             modelShader.setVec3("viewPos", camera.pos);
             modelShader.setVec3("material.emissionColor", glm::vec3(0));
             //city.draw(modelShader);
-            backpack.draw(modelShader);
+            backpack.draw(&modelShader);
         }
         // Render box.
         {
@@ -215,7 +224,7 @@ int main() {
             modelShader.enable();
             modelShader.setMat4("model", model);
             modelShader.setVec3("material.emissionColor", glm::vec3(0.0f, 0.5f, 0.69f));
-            box.draw(modelShader);
+            box.draw(&modelShader);
         }
         // Particle system.
         {
@@ -242,7 +251,7 @@ int main() {
             billboardShader.setVec3("color", glm::vec3(1));
             billboardShader.setVec2("size", glm::vec2(1.f));
             billboardShader.setMat4("model", model);
-            quad.draw(billboardShader);
+            quad.draw(&billboardShader);
             glBindTexture(GL_TEXTURE_2D, 0);
             glActiveTexture(0);
         }
@@ -256,10 +265,18 @@ int main() {
             billboardShader.setVec3("color", pLight.diffuse);
             billboardShader.setVec2("size", glm::vec2(0.25f));
             billboardShader.setMat4("model", model);
-            quad.draw(billboardShader);
+            quad.draw(&billboardShader);
             glBindTexture(GL_TEXTURE_2D, 0);
             glActiveTexture(0);
             glDepthFunc(GL_LESS);
+        }
+        // Skybox.
+        {
+            skyShader.enable();
+            skyShader.setInt("DrawMode", drawMode);
+            skyShader.setMat4("projection", projection);
+            skyShader.setMat4("view", view);
+            sky.draw(&skyShader);
         }
         // Draw FBO.
         {

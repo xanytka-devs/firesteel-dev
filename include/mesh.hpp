@@ -65,31 +65,31 @@ namespace LearningOpenGL {
         }
 
         /// Render the mesh.
-        void draw(Shader& shader) {
+        void draw(Shader* shader) {
             // Bind appropriate textures.
             unsigned int diffuseNr = 0;
             unsigned int specularNr = 0;
             unsigned int normalNr = 0;
             unsigned int heightNr = 0;
             unsigned int emisNr = 0;
-            shader.enable();
-            shader.setVec4("material.ambient", glm::vec4(ambient, 1));
+            shader->enable();
+            shader->setVec4("material.ambient", glm::vec4(ambient, 1));
 
-            shader.setVec4("material.diffuse", glm::vec4(diffuse, 1));
-            shader.setInt("material.diffuse0", 0);
+            shader->setVec4("material.diffuse", glm::vec4(diffuse, 1));
+            shader->setInt("material.diffuse0", 0);
 
-            shader.setVec4("material.specular", glm::vec4(specular, 1));
-            shader.setInt("material.specular0", 0);
+            shader->setVec4("material.specular", glm::vec4(specular, 1));
+            shader->setInt("material.specular0", 0);
 
-            shader.setVec4("material.emission", glm::vec4(emission, 1));
-            shader.setInt("material.emission0", 0);
+            shader->setVec4("material.emission", glm::vec4(emission, 1));
+            shader->setInt("material.emission0", 0);
 
-            shader.setVec4("material.normal", glm::vec4(normal, 1));
-            shader.setInt("material.normal0", 0);
+            shader->setVec4("material.normal", glm::vec4(normal, 1));
+            shader->setInt("material.normal0", 0);
 
-            shader.setBool("noTextures", true);
+            shader->setBool("noTextures", true);
             if(!mNoTextures) {
-                shader.setBool("noTextures", false);
+                shader->setBool("noTextures", false);
                 glActiveTexture(GL_TEXTURE0);
                 glBindTexture(GL_TEXTURE_2D, 0);
                 for (unsigned int i = 0; i < textures.size(); i++) {
@@ -108,7 +108,7 @@ namespace LearningOpenGL {
                     else if (name == "height")
                         number = std::to_string(heightNr++);
                     // Now set the sampler to the correct texture unit.
-                    shader.setInt("material." + name + number, i);
+                    shader->setInt("material." + name + number, i);
                     glBindTexture(GL_TEXTURE_2D, textures[i].id);
                 }
             }

@@ -34,7 +34,7 @@ namespace LearningOpenGL {
         }
 
         /// Renders the model.
-        void draw(Shader& tShader) {
+        void draw(Shader* tShader) {
             for(unsigned int i = 0; i < meshes.size(); i++)
                 meshes[i].draw(tShader);
         }
