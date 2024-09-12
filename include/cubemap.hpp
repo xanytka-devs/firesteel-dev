@@ -55,6 +55,11 @@ namespace LearningOpenGL {
             glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
         }
 
+        void bind() const {
+            glActiveTexture(GL_TEXTURE11);
+            glBindTexture(GL_TEXTURE_CUBE_MAP, m_id);
+        }
+
         unsigned int getID() const { return m_id; }
 
         //void load(const char* t_cb_file_path) {

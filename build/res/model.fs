@@ -1,5 +1,6 @@
 #version 330 core
-out vec4 frag_COLOR;
+layout (location = 0) out vec4 frag_COLOR;
+layout (location = 1) out vec4 frag_BRIGHTNESS;
 
 in VS_OUT {
     vec3 frag_POS;
@@ -83,6 +84,7 @@ float LinearizeDepth(float depth) {
 
 uniform int lightingType;
 uniform bool sRGBLighting;
+uniform samplerCube skybox;
 vec3 calcDirLight  (vec4 diffMap, vec4 specMap, vec4 emisMap, vec4 normMap);
 vec3 calcPointLight(int pLightIndex, vec4 diffMap, vec4 specMap, vec4 emisMap, vec4 normMap);
 vec3 calcSpotLight (int sLightIndex, vec4 diffMap, vec4 specMap, vec4 emisMap, vec4 normMap);
@@ -94,13 +96,15 @@ vec3 TangentFragPos;
 void main() {
 	// material values
 	vec4 diffMap = material.diffuse;
+	float transparency = 1.0;
 	vec4 specMap = material.specular;
 	vec4 emisMap = material.emission;
 	vec4 normMap = material.normal;
 	// texture values
 	if(!noTextures) {
 		diffMap = texture(material.diffuse0, fs_in.frag_UV);
-		if(diffMap.a<0.5) discard;
+		transparency = diffMap.a;
+		if(transparency<0.1) discard;
 		specMap = texture(material.specular0, fs_in.frag_UV);
 		emisMap = texture(material.emission0, fs_in.frag_UV);
 		normMap = texture(material.normal0, fs_in.frag_UV);
@@ -111,7 +115,12 @@ void main() {
 	// normal
 	// transform normal vector to range [-1,1]
     vec4 norm = normalize(normMap * 2.0 - 1.0);  // this normal is in tangent space
-	
+	// skybox
+	vec3 I = normalize(fs_in.frag_POS - viewPos);
+	vec3 R = refract(I, normalize(fs_in.frag_NORMAL), material.skyboxRefraction);
+	vec3 skyboxCalc = texture(skybox, -R).rgb * material.skyboxRefractionStrength;
+	if(DrawMode!=9) skyboxCalc *= specMap.rgb;
+	// light calculations
 	vec3 result = vec3(0);
 	if(lightingType > 0) {
 		// directional light
@@ -124,9 +133,11 @@ void main() {
 			result += calcSpotLight(s, diffMap, specMap, emisMap, norm);
 		// emission
 		result += (emisMap.rgb * material.emissionColor) * material.emissionFactor;
+		// skybox
+		result += skyboxCalc;
 	} else result = diffMap.rgb;
 	switch(DrawMode) {
-		case 0: frag_COLOR = vec4(result, 1.0);										break;
+		case 0: frag_COLOR = vec4(result, transparency);							break;
 		case 1: frag_COLOR = vec4(vec3(LinearizeDepth(gl_FragCoord.z) / far), 1.0); break;
 		case 2: frag_COLOR = specMap;												break;
 		case 3: frag_COLOR = vec4(fs_in.frag_NORMAL * 0.5 + 0.5,1.0);				break;
@@ -135,7 +146,11 @@ void main() {
 		case 6: frag_COLOR = vec4(fs_in.frag_TAN * 0.5 + 0.5,1.0);					break;
 		case 7: frag_COLOR = vec4(fs_in.frag_BITAN * 0.5 + 0.5,1.0);				break;
 		case 8: frag_COLOR = emisMap;												break;
+		case 9: frag_COLOR = vec4(skyboxCalc,1.0);									break;
 	}
+	float brightness = dot(frag_COLOR.rgb, vec3(0.2126, 0.7152, 0.0722));
+    if(brightness > 1.0) frag_BRIGHTNESS = vec4(frag_COLOR.rgb, 1.0);
+    else frag_BRIGHTNESS = vec4(0.0, 0.0, 0.0, 1.0);
 }
 
 vec3 calcDirLight(vec4 diffMap, vec4 specMap, vec4 emisMap, vec4 normMap) {

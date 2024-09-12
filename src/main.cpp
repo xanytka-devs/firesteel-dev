@@ -40,7 +40,7 @@ static std::string getLightingTypeName();
 int main() {
     // Create window.
     Window win(800,600);
-    if(!win.initialize()) return 1;
+    if(!win.initialize("FiresteelDev App")) return 1;
     win.setClearColor(glm::vec3(0.185f, 0.15f, 0.1f));
     // GLAD (OpenGL) init.
     if(gladLoadGL(glfwGetProcAddress) == 0) {
@@ -113,6 +113,8 @@ int main() {
         modelShader.enable();
         modelShader.setFloat("material.emissionFactor", 1);
         modelShader.setFloat("material.shininess", 64);
+        modelShader.setFloat("material.skyboxRefraction", 1.00 / 1.52);
+        modelShader.setFloat("material.skyboxRefractionStrength", 0.025f);
 
         modelShader.setVec3("dirLight.direction", dLight.direction);
         modelShader.setVec3("dirLight.ambient", dLight.ambient);
@@ -165,7 +167,7 @@ int main() {
     sky.initialize(100);
     // Framebuffer.
     displayLoadingMsg("Creating FBO", &textShader, &win);
-    Framebuffer fbo(win.getSize(), true);
+    Framebuffer fbo(win.getSize());
     fbo.quad();
     if(!fbo.isComplete()) LOG_ERRR("FBO isn't complete");
     camera.farPlane = 10000;
@@ -193,6 +195,7 @@ int main() {
         glm::mat4 model = glm::mat4(1.0f);
         sLight.position = camera.pos;
         sLight.direction = camera.Forward;
+        sky.bind();
         modelShader.enable();
         modelShader.setInt("lightingType", lightingMode);
         modelShader.setBool("sRGBLighting", fboSRGB);
@@ -207,6 +210,7 @@ int main() {
             model = glm::rotate(model, float(glm::radians(0.f)), glm::vec3(0, 0, 1));
             model = glm::scale(model, glm::vec3(0.5f));
             modelShader.setInt("DrawMode", drawMode);
+            modelShader.setInt("skybox", 11);
             modelShader.setMat4("projection", projection);
             modelShader.setMat4("view", view);
             modelShader.setMat4("model", model);
@@ -308,8 +312,8 @@ int main() {
             t.draw(&textShader, "[Wheel] FOV: " + std::to_string((int)camera.fov), win.getSize(), glm::vec2(10.0f, 510.0f), glm::vec2(1.f), glm::vec3(1, 0, 0));
 
             if (drawSelectMod == 0) {
-                t.draw(&textShader, "[1-9] Shading: " + getDrawModName(), win.getSize(), glm::vec2(8.0f, 493.0f), glm::vec2(1.f), glm::vec3(0));
-                t.draw(&textShader, "[1-9] Shading: " + getDrawModName(), win.getSize(), glm::vec2(10.0f, 495.0f), glm::vec2(1.f), glm::vec3(1, 0, 0));
+                t.draw(&textShader, "[1-0] Shading: " + getDrawModName(), win.getSize(), glm::vec2(8.0f, 493.0f), glm::vec2(1.f), glm::vec3(0));
+                t.draw(&textShader, "[1-0] Shading: " + getDrawModName(), win.getSize(), glm::vec2(10.0f, 495.0f), glm::vec2(1.f), glm::vec3(1, 0, 0));
             } else {
                 t.draw(&textShader, "[1-4] Lighting: " + getLightingTypeName(), win.getSize(), glm::vec2(8.0f, 493.0f), glm::vec2(1.f), glm::vec3(0));
                 t.draw(&textShader, "[1-4] Lighting: " + getLightingTypeName(), win.getSize(), glm::vec2(10.0f, 495.0f), glm::vec2(1.f), glm::vec3(1, 0, 0));
@@ -342,6 +346,8 @@ static std::string getDrawModName() {
         return "Bitangents";
     case 8:
         return "Emission";
+    case 9:
+        return "Skybox Refractions";
     default:
         return "unknown";
     }
@@ -402,7 +408,8 @@ void processInput(Window* tWin, GLFWwindow* tPtr) {
         if (glfwGetKey(tPtr, GLFW_KEY_6) == GLFW_PRESS) { drawMode = 6; }
         if (glfwGetKey(tPtr, GLFW_KEY_7) == GLFW_PRESS) { drawMode = 7; }
         if (glfwGetKey(tPtr, GLFW_KEY_8) == GLFW_PRESS) { drawMode = 8; }
-        if (glfwGetKey(tPtr, GLFW_KEY_9) == GLFW_PRESS) { drawMode = 1; }
+        if (glfwGetKey(tPtr, GLFW_KEY_9) == GLFW_PRESS) { drawMode = 9; }
+        if (glfwGetKey(tPtr, GLFW_KEY_0) == GLFW_PRESS) { drawMode = 1; }
     }
     if (drawSelectMod == 1) {
         drawMode = 0;

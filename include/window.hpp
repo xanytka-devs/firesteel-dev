@@ -8,7 +8,7 @@ namespace LearningOpenGL {
 		Window(int t_width = 800, int t_height = 600, bool t_vsync = false) :
 			mPtr(NULL), mWidth(t_width), mHeight(t_height), mVSync(t_vsync), mClearColor(glm::vec3(0)), mClosed(false) {}
 
-		bool initialize(const char* t_title = "RE_OGL Window", bool t_fullscreen = false) {
+		bool initialize(const char* t_title = "Firesteel App", bool t_fullscreen = false) {
             // Initialize and configure.
             LOG_INFO("Creating window \"", t_title, "\".");
             glfwInit();

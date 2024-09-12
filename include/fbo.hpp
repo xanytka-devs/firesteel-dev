@@ -4,88 +4,29 @@
 namespace LearningOpenGL {
     class Framebuffer {
     public:
-        Framebuffer(int tWidth, int tHeight, bool hdrSupport = false) {
-            //FBO creation.
-            glGenFramebuffers(1, &fbo);
-            glBindFramebuffer(GL_FRAMEBUFFER, fbo);
-            //Framebuffer's texture.
-            glGenTextures(1, &fboTex);
-            glBindTexture(GL_TEXTURE_2D, fboTex);
-            if(hdrSupport) glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB16F, tWidth, tHeight, 0, GL_RGB, GL_FLOAT, NULL);
-            else glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, tWidth, tHeight, 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-            glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, fboTex, 0);
-            //Framebuffer's render buffer.
-            glGenRenderbuffers(1, &rbo);
-            glBindRenderbuffer(GL_RENDERBUFFER, rbo);
-            glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, tWidth, tHeight);
-            glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, rbo);
+        Framebuffer(int tWidth, int tHeight) {
+            createBuffers(tWidth, tHeight);
         }
-        Framebuffer(glm::vec2 tSize, bool hdrSupport = false) {
-            //FBO creation.
-            glGenFramebuffers(1, &fbo);
-            glBindFramebuffer(GL_FRAMEBUFFER, fbo);
-            //Framebuffer's texture.
-            glGenTextures(1, &fboTex);
-            glBindTexture(GL_TEXTURE_2D, fboTex);
-            if(hdrSupport) glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB16F, static_cast<GLuint>(tSize.x), static_cast<GLuint>(tSize.y), 0, GL_RGB, GL_FLOAT, NULL);
-            else glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, static_cast<GLuint>(tSize.x), static_cast<GLuint>(tSize.y), 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-            glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, fboTex, 0);
-            //Framebuffer's render buffer.
-            glGenRenderbuffers(1, &rbo);
-            glBindRenderbuffer(GL_RENDERBUFFER, rbo);
-            glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, static_cast<GLuint>(tSize.x), static_cast<GLuint>(tSize.y));
-            glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, rbo);
+        Framebuffer(glm::vec2 tSize) {
+            createBuffers(static_cast<GLuint>(tSize.x), static_cast<GLuint>(tSize.y));
         }
 
-        void scale(int tWidth, int tHeight, bool hdrSupport = false) const {
-            //Resize FBO.
-            glBindTexture(GL_TEXTURE_2D, fboTex);
-            if(hdrSupport) glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB16F, tWidth, tHeight, 0, GL_RGB, GL_FLOAT, NULL);
-            else glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, tWidth, tHeight, 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-            glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, fboTex, 0);
-            //Framebuffer's render buffer.
-            glBindRenderbuffer(GL_RENDERBUFFER, rbo);
-            glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, tWidth, tHeight);
-            glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, rbo);
-            //Unbind framebuffer.
-            glBindFramebuffer(GL_FRAMEBUFFER, 0);
-            glBindTexture(GL_TEXTURE_2D, 0);
-            glBindRenderbuffer(GL_RENDERBUFFER, 0);
+        void scale(int tWidth, int tHeight) const {
+            scaleBuffers(tWidth, tHeight);
         }
 
-        void scale(glm::vec2 tSize, bool hdrSupport = false) const {
-            //Resize FBO.
-            glBindTexture(GL_TEXTURE_2D, fboTex);
-            if(hdrSupport) glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB16F, static_cast<GLuint>(tSize.x), static_cast<GLuint>(tSize.y), 0, GL_RGB, GL_FLOAT, NULL);
-            else glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, static_cast<GLuint>(tSize.x), static_cast<GLuint>(tSize.y), 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-            glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, fboTex, 0);
-            //Framebuffer's render buffer.
-            glBindRenderbuffer(GL_RENDERBUFFER, rbo);
-            glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8,
-                static_cast<GLsizei>(tSize.x), static_cast<GLsizei>(tSize.y));
-            glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, rbo);
-            //Unbind framebuffer.
-            glBindFramebuffer(GL_FRAMEBUFFER, 0);
-            glBindTexture(GL_TEXTURE_2D, 0);
-            glBindRenderbuffer(GL_RENDERBUFFER, 0);
+        void scale(glm::vec2 tSize) const {
+            scaleBuffers(static_cast<GLsizei>(tSize.x), static_cast<GLsizei>(tSize.y));
         }
 
         bool isComplete() const {
-            glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+            glBindFramebuffer(GL_FRAMEBUFFER, FBO);
             bool result = (glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE);
             glBindFramebuffer(GL_FRAMEBUFFER, 0);
             return result;
         }
         void bind() const {
-            glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+            glBindFramebuffer(GL_FRAMEBUFFER, FBO);
             glEnable(GL_DEPTH_TEST);
         }
         void unbind() {
@@ -118,11 +59,47 @@ namespace LearningOpenGL {
         void drawQuad(Shader* tShader) const {
             tShader->enable();
             glBindVertexArray(quadVAO);
-            glBindTexture(GL_TEXTURE_2D, fboTex);
+            glBindTexture(GL_TEXTURE_2D, FBOtexture);
             glDrawArrays(GL_TRIANGLES, 0, 6);
         }
     private:
         unsigned int quadVAO = 0, quadVBO = 0;
-        unsigned int fbo = 0, fboTex = 0, rbo = 0;
+        unsigned int FBO = 0, FBOtexture = 0, RBO = 0;
+        unsigned int FBOtextures[11];
+        size_t FBOtexturesSize = 1;
+
+        void createBuffers(int tWidth, int tHeight) {
+            //FBO creation.
+            glGenFramebuffers(1, &FBO);
+            glBindFramebuffer(GL_FRAMEBUFFER, FBO);
+            //Framebuffer's texture.
+            glGenTextures(1, &FBOtexture);
+            glBindTexture(GL_TEXTURE_2D, FBOtexture);
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB16F, tWidth, tHeight, 0, GL_RGB, GL_FLOAT, NULL);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+            glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, FBOtexture, 0);
+            //Framebuffer's render buffer.
+            glGenRenderbuffers(1, &RBO);
+            glBindRenderbuffer(GL_RENDERBUFFER, RBO);
+            glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, tWidth, tHeight);
+            glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, RBO);
+        }
+        void scaleBuffers(int tWidth, int tHeight) const {
+            //Resize FBO.
+            glBindTexture(GL_TEXTURE_2D, FBOtexture);
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB16F, tWidth, tHeight, 0, GL_RGB, GL_FLOAT, NULL);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+            glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, FBOtexture, 0);
+            //Framebuffer's render buffer.
+            glBindRenderbuffer(GL_RENDERBUFFER, RBO);
+            glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, tWidth, tHeight);
+            glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, RBO);
+            //Unbind framebuffer.
+            glBindFramebuffer(GL_FRAMEBUFFER, 0);
+            glBindTexture(GL_TEXTURE_2D, 0);
+            glBindRenderbuffer(GL_RENDERBUFFER, 0);
+        }
     };
 }
