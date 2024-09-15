@@ -7,6 +7,7 @@
 
 #define LOG(...) Log::log_ntag(__VA_ARGS__);
 #define LOG_INFO(...) Log::log_info(__VA_ARGS__);
+#define LOG_STATE(...) Log::log_state(__VA_ARGS__);
 #define LOG_WARN(...) Log::log_warn(__VA_ARGS__);
 #define LOG_ERRR(...) Log::log_error(__VA_ARGS__);
 #define LOG_CRIT(...) Log::log_critical(__VA_ARGS__);
@@ -56,6 +57,10 @@
 		log("[INFO] ", CMD_F_GRAY);
 		log(std::string(t_msg1) + t_msg2 + t_msg3 + t_msg4 + t_msg5 + "\n");
 	}
+	static void log_state(const char* t_msg1, const char* t_msg2 = "", const char* t_msg3 = "", const char* t_msg4 = "", const char* t_msg5 = "") {
+		log("[STATE] ", CMD_F_LBLUE);
+		log(std::string(t_msg1) + t_msg2 + t_msg3 + t_msg4 + t_msg5 + "\n");
+	}
 	static void log_warn(const char* t_msg1, const char* t_msg2 = "", const char* t_msg3 = "", const char* t_msg4 = "", const char* t_msg5 = "") {
 		log("[WARN] ", CMD_F_YELLOW);
 		log(std::string(t_msg1) + t_msg2 + t_msg3 + t_msg4 + t_msg5 + "\n");
@@ -74,6 +79,7 @@
 #else
 	static void log_ntag(const char* t_msg1, const char* t_msg2 = "", const char* t_msg3 = "", const char* t_msg4 = "", const char* t_msg5 = "") { }
 	static void log_info(const char* t_msg1, const char* t_msg2 = "", const char* t_msg3 = "", const char* t_msg4 = "", const char* t_msg5 = "") { }
+	static void log_state(const char* t_msg1, const char* t_msg2 = "", const char* t_msg3 = "", const char* t_msg4 = "", const char* t_msg5 = "") { }
 	static void log_warn(const char* t_msg1, const char* t_msg2 = "", const char* t_msg3 = "", const char* t_msg4 = "", const char* t_msg5 = "") { }
 	static void log_error(const char* t_msg1, const char* t_msg2 = "", const char* t_msg3 = "", const char* t_msg4 = "", const char* t_msg5 = "") { }
 	static void log_critical(const char* t_msg1, const char* t_msg2 = "", const char* t_msg3 = "", const char* t_msg4 = "", const char* t_msg5 = "") { }

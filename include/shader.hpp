@@ -11,6 +11,10 @@ namespace LearningOpenGL {
     public:
         unsigned int ID;
 
+        Shader() {
+            ID = 0;
+        }
+
         /// Constructor generates the shader on the fly.
         Shader(const char* vertexPath, const char* fragmentPath, const char* geometryPath = nullptr) {
             // 1. retrieve the vertex/fragment source code from filePath

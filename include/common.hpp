@@ -2,3 +2,7 @@
 #include <../external/glfw/include/GLFW/glfw3.h>
 #include <../external/glm/glm/glm.hpp>
 #include "utils/log.hpp"
+
+#ifdef __APPLE__
+#define GL_SILENCE_DEPRECATION
+#endif

@@ -10,7 +10,7 @@ namespace LearningOpenGL {
 
 		bool initialize(const char* t_title = "Firesteel App", bool t_fullscreen = false) {
             // Initialize and configure.
-            LOG_INFO("Creating window \"", t_title, "\".");
+            LOG_INFO("Creating window \"", t_title, "\"");
             glfwInit();
             glfwWindowHint(GL_FRAMEBUFFER_SRGB, GL_TRUE);
             glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
@@ -44,8 +44,10 @@ namespace LearningOpenGL {
             //glfwSetKeyCallback(m_ptr, Keyboard::key_callback);
             return true;
 		}
-        void update() {
+        void swapBuffers() {
             glfwSwapBuffers(mPtr);
+        }
+        void pollEvents() {
             glfwPollEvents();
         }
         void clearBuffers() const {

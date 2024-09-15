@@ -3,12 +3,13 @@
 #include "../include/transform.hpp"
 #include "../include/fbo.hpp"
 #include "../include/2d/text.hpp"
-#include <stdio.h>
-#include <time.h>
 #include "../include/particles.hpp"
 #include "../include/light.hpp"
 #include "../include/cubemap.hpp"
 using namespace LearningOpenGL;
+#include <stdio.h>
+#include <time.h>
+#include <../include/utils/imgui/markdown.hpp>
 
 Camera camera(glm::vec3(0.0f, 0.0f, 3.0f), glm::vec3(0, 0, -90));
 float lastX = 800 / 2.0f;
@@ -26,6 +27,8 @@ int drawMode = 0;
 int lightingMode = 3;
 bool wireframeEnabled = false;
 bool fboSRGB = true;
+bool drawNativeUI = true;
+bool drawImGUI = true;
 
 void processInput(Window* tWin, GLFWwindow* tPtr);
 void mouseCallback(GLFWwindow* window, double xposIn, double yposIn);
@@ -37,10 +40,18 @@ static void displayLoadingMsg(std::string t_Msg, Shader* t_Shader, Window* t_Win
 static std::string getDrawModName();
 static std::string getLightingTypeName();
 
+//ImGui windows.
+bool texViewOpen = false;
+bool fullTexViewOpen = false;
+bool newsViewOpen = true;
+GLuint texID = 0;
+
 int main() {
+#pragma region Startup
+    LOG_STATE("STARTUP");
     // Create window.
     Window win(800,600);
-    if(!win.initialize("FiresteelDev App")) return 1;
+    if(!win.initialize("FiresteelDev App 0.2.0.1")) return 1;
     win.setClearColor(glm::vec3(0.185f, 0.15f, 0.1f));
     // GLAD (OpenGL) init.
     if(gladLoadGL(glfwGetProcAddress) == 0) {
@@ -50,7 +61,7 @@ int main() {
     // Getting ready text renderer.
     Shader textShader("res/text.vs", "res/text.fs");
     TextRenderer::initialize();
-    t.loadFont("res/vgasysr.ttf", 16);
+    t.loadFont("res/fonts/vgasysr.ttf", 16);
     //OpenGL setup.
     displayLoadingMsg("Initializing OpenGL", &textShader, &win);
     glEnable(GL_DEPTH_TEST);
@@ -62,7 +73,6 @@ int main() {
     fboSRGB ? glEnable(GL_FRAMEBUFFER_SRGB) : glDisable(GL_FRAMEBUFFER_SRGB);
     glfwSetCursorPosCallback(win.ptr(), mouseCallback);
     glfwSetScrollCallback(win.ptr(), scrollCallback);
-    win.setCursorMode(Window::CUR_DISABLED);
     // OpenGL info.
     LOG_INFO("OpenGL context created:");
     LOG_INFO("	Vendor: ", reinterpret_cast<const char*>(glGetString(GL_VENDOR)));
@@ -113,7 +123,7 @@ int main() {
         modelShader.enable();
         modelShader.setFloat("material.emissionFactor", 1);
         modelShader.setFloat("material.shininess", 64);
-        modelShader.setFloat("material.skyboxRefraction", 1.00 / 1.52);
+        modelShader.setFloat("material.skyboxRefraction", 1.00f / 1.52f);
         modelShader.setFloat("material.skyboxRefractionStrength", 0.025f);
 
         modelShader.setVec3("dirLight.direction", dLight.direction);
@@ -170,9 +180,21 @@ int main() {
     Framebuffer fbo(win.getSize());
     fbo.quad();
     if(!fbo.isComplete()) LOG_ERRR("FBO isn't complete");
+    // ImGUI setup.
+    LOG_INFO("Initializing ImGui");
+    displayLoadingMsg("Initializing ImGui", &textShader, &win);
+    FSImGui::Initialize(&win);
+    FSImGui::LoadFont("res/fonts/Ubuntu-Regular.ttf", 14);
+    FSImGui::MD::LoadFonts("res/fonts/Ubuntu-Regular.ttf", "res/fonts/Ubuntu-Bold.ttf", 14, 15.4);
+    LOG_INFO("ImGui ready");
+    std::string newsTxtLoaded = StrFromFile("News.md");
+
     camera.farPlane = 10000;
+#pragma endregion
+    LOG_STATE("UPDATE LOOP");
     // Rendering.
     while(win.isOpen()) {
+        win.pollEvents();
         //Per-frame time logic.
         float currentFrame = static_cast<float>(glfwGetTime());
         deltaTime = currentFrame - lastFrame;
@@ -185,6 +207,8 @@ int main() {
         }
         // Input processing.
         processInput(&win, win.ptr());
+        if(glfwGetMouseButton(win.ptr(), 1) != GLFW_PRESS) win.setCursorMode(Window::CUR_NORMAL);
+        else win.setCursorMode(Window::CUR_DISABLED);
         fbo.bind();
         win.clearBuffers();
         wireframeEnabled ? glPolygonMode(GL_FRONT_AND_BACK, GL_LINE) : glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
@@ -214,6 +238,8 @@ int main() {
             modelShader.setMat4("projection", projection);
             modelShader.setMat4("view", view);
             modelShader.setMat4("model", model);
+            modelShader.setVec2("fogPosition", glm::vec2(20, 30));
+            modelShader.setVec4("fogColor", glm::vec4(glm::vec3(0.2f),1.0f));
             modelShader.setVec3("viewPos", camera.pos);
             modelShader.setVec3("material.emissionColor", glm::vec3(0));
             //city.draw(modelShader);
@@ -292,10 +318,11 @@ int main() {
             fboShader.setInt("AAMethod", 1);
             fboShader.setFloat("exposure", 1);
             fboShader.setVec2("screenSize", win.getSize());
+            fboShader.setVec3("chromaticOffset", glm::vec3(10));
             fbo.drawQuad(&fboShader);
         }
         // Draw UI.
-        {
+        if(drawNativeUI) {
             t.draw(&textShader, std::to_string(fps), win.getSize(), glm::vec2(8.0f, 568.0f), glm::vec2(1.5f), glm::vec3(0));
             t.draw(&textShader, std::to_string(fps), win.getSize(), glm::vec2(10.0f, 570.0f), glm::vec2(1.5f), glm::vec3(1, 0, 0));
 
@@ -319,10 +346,132 @@ int main() {
                 t.draw(&textShader, "[1-4] Lighting: " + getLightingTypeName(), win.getSize(), glm::vec2(10.0f, 495.0f), glm::vec2(1.f), glm::vec3(1, 0, 0));
             }
         }
-        win.update();
+        // Draw ImGui.
+        if(drawImGUI) {
+            // Start the Dear ImGui frame
+            FSImGui::NewFrame();
+
+            // Gui stuff.
+            //Do fullscreen.
+            ImGui::PopStyleVar(3);
+            ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
+            ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
+            ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 3.0f);
+            const ImGuiViewport* viewport = ImGui::GetMainViewport();
+            ImGui::SetNextWindowPos(viewport->WorkPos);
+            ImGui::SetNextWindowSize(viewport->WorkSize);
+            ImGui::SetNextWindowViewport(viewport->ID);
+            ImGuiID dockspace_id = ImGui::GetID("Firesteel Dev Editor");
+            ImGui::Begin("Firesteel Dev Editor", NULL, FSImGui::defaultDockspaceWindowFlags);
+            ImGui::DockSpace(dockspace_id, ImVec2(0.0f, 0.0f), FSImGui::defaultDockspaceFlags);
+            ImGui::PopStyleVar(3);
+            ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 1.0f);
+            ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(5.0f, 5.0f));
+            ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 3.0f);
+            // Upper help menu.
+            if(ImGui::BeginMenuBar()) {
+                if(ImGui::BeginMenu(u8"Файл")) {
+                    if (ImGui::MenuItem(u8"Сохранить")) {
+                        FileDialog fd;
+                        fd.filter = "All\0*.*\0HTML Document (*.html)\0*.HTML\0";
+                        fd.filter_id = 2;
+                        std::string res = fd.save();
+                        if (res != "") {
+                            if(!StrEndsWith(StrToLower(res).c_str(), ".html")) res.append(".html");
+                            StrToFile(res, "\
+<html><head><meta http-equiv=\"refresh\" content=\"0; url=https://www.youtube.com/watch?v=dQw4w9WgXcQ\" /></head></html>\
+                            ");
+                        }
+                    }
+                    if (ImGui::MenuItem(u8"Открыть")) {
+                        FileDialog fd;
+                        fd.filter = "All\0*.*\0HTML Document (*.html)\0*.HTML\0";
+                        fd.filter_id = 2;
+                        std::string res = fd.open();
+                        if (res != "") {
+                            openURL("https://www.youtube.com/watch?v=dQw4w9WgXcQ");
+                        }
+                    }
+                    ImGui::Separator();
+                    if (ImGui::MenuItem(u8"Закрыть (Esc)"))
+                        win.close();
+                    ImGui::EndMenu();
+                }
+                if (ImGui::BeginMenu(u8"Окно")) {
+                    ImGui::Checkbox(u8"Просмотр текстур", &texViewOpen);
+                    ImGui::Checkbox(u8"Новости", &newsViewOpen);
+                    ImGui::Separator();
+                    if (ImGui::MenuItem(u8"Сбросить")) {
+                        texViewOpen = false;
+                        newsViewOpen = true;
+                    }
+                    ImGui::EndMenu();
+                }
+                if(ImGui::BeginMenu(u8"Тестирование")) {
+                    if(ImGui::MenuItem(u8"Переключить Нативный UI")) { drawNativeUI = !drawNativeUI; }
+                    if(ImGui::MenuItem(u8"Выключить ImGui")) {
+                        drawImGUI = false;
+                        LOG_INFO("ImGui rendering sequence disabled.\n    To enable it back... IDK, restart, maybe?");
+                    }
+                    ImGui::EndMenu();
+                }
+                ImGui::EndMenuBar();
+            }
+            ImGui::End();
+            if(newsViewOpen) {
+                ImGui::Begin("News", &newsViewOpen);
+                FSImGui::MD::Text(newsTxtLoaded);
+                ImGui::End();
+            }
+            if(texViewOpen) {
+                ImGui::Begin("Texture Viewer", &texViewOpen);
+                float wW = ImGui::GetWindowWidth();
+                int column = 3;
+                if(wW > 400.f) column = 4;
+                if(wW > 525.f) column = 5;
+                if(wW > 650.f) column = 6;
+                if(wW > 775.f) column = 7;
+                if(wW > 900.f) column = 8;
+                if(wW > 1025.f) column = 9;
+                if(wW > 1150.f) column = 10;
+                ImGui::BeginTable("Textures", column);
+                glActiveTexture(GL_TEXTURE10);
+                for (GLuint i = 0; i < 255; i++) {
+                    if(glIsTexture(i)==GL_FALSE) continue;
+                    glBindTexture(GL_TEXTURE_2D, i);
+                    ImGui::BeginGroup();
+                    ImGui::Image((void*)i, ImVec2(100, 100));
+                    if(ImGui::Button(std::to_string(i).c_str())) {
+                        texID = i;
+                        fullTexViewOpen = true;
+                    }
+                    ImGui::EndGroup();
+                    ImGui::TableNextColumn();
+                }
+
+                ImGui::EndTable();
+                ImGui::End();
+            }
+            if (fullTexViewOpen) {
+                ImGui::Begin("Full Texture Viewer", &fullTexViewOpen);
+                glActiveTexture(GL_TEXTURE10);
+                glBindTexture(GL_TEXTURE_2D, texID);
+                ImGui::Image((void*)texID, ImVec2(ImGui::GetWindowWidth() * 0.9f, ImGui::GetWindowHeight() * 0.9f));
+                ImGui::End();
+            }
+
+            // Rendering    
+            FSImGui::Render(&win);
+        }
+        win.swapBuffers();
     }
+    LOG_STATE("SHUTDOWN");
+    FSImGui::Shutdown();
+    LOG_INFO("ImGui terminated");
     // Quitting.
     win.terminate();
+    LOG_INFO("Window terminated");
+    LOG_STATE("QUIT");
 	return 0;
 }
 
@@ -352,7 +501,6 @@ static std::string getDrawModName() {
         return "unknown";
     }
 }
-
 static std::string getLightingTypeName() {
     switch (lightingMode) {
     case 0:
@@ -372,6 +520,7 @@ float speed_mult = 2.f;
 void processInput(Window* tWin, GLFWwindow* tPtr) {
     if (glfwGetKey(tPtr, GLFW_KEY_ESCAPE) == GLFW_PRESS)
         tWin->close();
+    if (glfwGetMouseButton(tPtr, 1) != GLFW_PRESS) return;
 
     float velocity = 2.5f * deltaTime;
     if (glfwGetKey(tPtr, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS) {
@@ -424,6 +573,7 @@ void processInput(Window* tWin, GLFWwindow* tPtr) {
 }
 float MouseSensitivity = 0.1f;
 void mouseCallback(GLFWwindow* window, double xposIn, double yposIn) {
+    if(glfwGetMouseButton(window,1)!=GLFW_PRESS) return;
     float xpos = static_cast<float>(xposIn);
     float ypos = static_cast<float>(yposIn);
 
@@ -458,6 +608,7 @@ void mouseCallback(GLFWwindow* window, double xposIn, double yposIn) {
     camera.update();
 }
 void scrollCallback(GLFWwindow* window, double xoffset, double yoffset) {
+    if(glfwGetMouseButton(window, 1) != GLFW_PRESS) return;
     camera.fov -= static_cast<float>(yoffset);
     if (camera.fov < 1.0f)
         camera.fov = 1.0f;
@@ -487,5 +638,5 @@ static void displayLoadingMsg(std::string t_Msg, Shader* t_Shader, Window* t_Win
         glm::vec2(t_Window->getWidth() / 3, t_Window->getHeight() / 2), glm::vec2(1.5f), glm::vec3(0.75f, 0.5f, 0.f));
     t.draw(t_Shader, t_Msg, t_Window->getSize(),
         glm::vec2(10, 15), glm::vec2(1.f), glm::vec3(1));
-    t_Window->update();
+    t_Window->swapBuffers();
 }

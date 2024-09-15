@@ -179,53 +179,9 @@ vec3 FXAA() {
 	return texture(screenTexture,finalUv).rgb;
 }
 
-//NFAA Method from:
-// https://www.gamedev.net/forums/topic/580517-nfaa---a-post-process-anti-aliasing-filter-results-implementation-details/
-float GetColorLuminance(vec3 i_vColor ){
-    return dot(i_vColor, vec3( 0.2126, 0.7152, 0.0722 ));
-}
-
-vec3 NFAA() {
-    vec2 vPixelViewport = vec2(1.0 / screenSize.x, 1.0 / screenSize.y);
-    
-    // Normal
-    vec2 upOffset = vec2(0, vPixelViewport.y);
-    vec2 rightOffset = vec2(vPixelViewport.x, 0);
-    float topHeight = GetColorLuminance(texture(screenTexture, frag_UV.xy + upOffset).rgb);
-    float bottomHeight = GetColorLuminance(texture(screenTexture, frag_UV.xy - upOffset).rgb);
-    float rightHeight = GetColorLuminance(texture(screenTexture, frag_UV.xy + rightOffset).rgb);
-    float leftHeight = GetColorLuminance(texture(screenTexture, frag_UV.xy - rightOffset).rgb);
-    float leftTopHeight = GetColorLuminance(texture(screenTexture, frag_UV.xy - rightOffset + upOffset).rgb);
-    float leftBottomHeight = GetColorLuminance(texture(screenTexture, frag_UV.xy - rightOffset - upOffset).rgb);
-    float rightTopHeight = GetColorLuminance(texture(screenTexture, frag_UV.xy + rightOffset + upOffset).rgb);
-    float rightBottomHeight = GetColorLuminance(texture(screenTexture, frag_UV.xy + rightOffset - upOffset).rgb);
-
-    float xDifference = (2.0 * rightHeight + rightTopHeight + rightBottomHeight) / 4.0 
-                        - (2.0 * leftHeight + leftTopHeight + leftBottomHeight) / 4.0;
-    float yDifference = (2.0 * topHeight + leftTopHeight + rightTopHeight) / 4.0 
-                        - (2.0 * bottomHeight + rightBottomHeight + leftBottomHeight) / 4.0;
-
-    vec3 dif1 = vec3(1, 0, xDifference);
-    vec3 dif2 = vec3(0, 1, yDifference);
-    vec3 NormalVectors = normalize(cross(dif1, dif2));
-
-    // Color
-    NormalVectors.xy *= vPixelViewport * 2.0;
-
-    // Increase pixel size to get more blur
-    vec2 normalVec = vec2(NormalVectors.x, -NormalVectors.y);
-    vec4 Scene0 = texture(screenTexture, frag_UV.xy);
-    vec4 Scene1 = texture(screenTexture, frag_UV.xy + NormalVectors.xy);
-    vec4 Scene2 = texture(screenTexture, frag_UV.xy - NormalVectors.xy);
-    vec4 Scene3 = texture(screenTexture, frag_UV.xy + normalVec);
-    vec4 Scene4 = texture(screenTexture, frag_UV.xy - normalVec);
-
-    // Final
-    return ((Scene0 + Scene1 + Scene2 + Scene3 + Scene4) * 0.2).rgb;
-}
-
 uniform bool sRGBLighting;
 uniform float exposure;
+uniform vec3 chromaticOffset;
 
 void main() {
 	////Kernel operations.
@@ -273,12 +229,11 @@ void main() {
 	//	FragColor = vec4(1, 0, 0, 1);
 	
 	// anti-alising
-    vec3 col = texture(screenTexture, frag_UV).rgb;
+    vec3 col = vec3(0);
 	if(AAMethod==1) col = FXAA();
-	else if(AAMethod==2) col = NFAA();
 	
     // exposure tone mapping
     vec3 mapped = vec3(1.0) - exp(-col * exposure);
 	if(!sRGBLighting) mapped = pow(mapped, vec3(1.0 / 2.2));
-    FragColor = vec4(mapped, 1.0);
+    FragColor = vec4(mapped,1);
 }

@@ -6,17 +6,21 @@ layout (location = 3) in vec3 aTangent;
 layout (location = 4) in vec3 aBitangent;
 
 out VS_OUT {
+    vec3 view_POS;
     vec3 frag_POS;
     vec2 frag_UV;
     vec3 frag_NORMAL;
     vec3 frag_TAN;
     vec3 frag_BITAN;
     mat3 tan_MATRIX;
+	float fog_FACTOR;
 } vs_out;
 
 uniform mat4 model;
 uniform mat4 view;
 uniform mat4 projection;
+uniform vec2 fogPosition;
+uniform vec3 viewPos;
 
 void main() {	
 	vs_out.frag_POS = vec3(model * vec4(aPos, 1.0));
@@ -33,5 +37,11 @@ void main() {
     
     vs_out.tan_MATRIX = transpose(mat3(T, B, N));
 	
+	vs_out.view_POS = viewPos;
+	// Calculate linear fog.
+    float fogStart = fogPosition.x;
+    float fogEnd = fogPosition.y;
+	
 	gl_Position = projection * view * vec4(vs_out.frag_POS, 1.0);
+	vs_out.fog_FACTOR = clamp((fogEnd - (viewPos.z)) / (fogEnd - fogStart), 0.0f, 1.0f);
 }

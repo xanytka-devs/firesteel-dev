@@ -28,6 +28,10 @@ namespace LearningOpenGL {
         std::string directory;
         bool gammaCorrection;
 
+        Transform() : gammaCorrection(false) {
+
+        }
+
         /// Constructor, expects a filepath to a 3D model.
         Transform(std::string const& tPath, bool tGamma = false) : gammaCorrection(tGamma) {
             loadModel(tPath);
@@ -54,6 +58,7 @@ namespace LearningOpenGL {
             directory = tPath.substr(0, tPath.find_last_of('/'));
 
             processNode(scene->mRootNode, scene);
+            LOG_INFO("Loaded model at \"", tPath.c_str(), "\"")
         }
 
         /// Processes a node in a recursive fashion.

@@ -4,6 +4,10 @@
 namespace LearningOpenGL {
     class Framebuffer {
     public:
+        Framebuffer() {
+
+        }
+
         Framebuffer(int tWidth, int tHeight) {
             createBuffers(tWidth, tHeight);
         }
