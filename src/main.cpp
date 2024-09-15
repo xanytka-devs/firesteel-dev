@@ -152,6 +152,16 @@ int main() {
         modelShader.setFloat("spotLights[0].linear", sLight.linear);
         modelShader.setFloat("spotLights[0].quadratic", sLight.quadratic);
     }
+    {
+#define FOG_EQUATION_LINEAR 0
+#define FOG_EQUATION_EXP 1
+#define FOG_EQUATION_EXP2 2
+        modelShader.setVec3("fogParams.vFogColor", glm::vec3(0.2f));
+        modelShader.setFloat("fogParams.fStart", 10.0f);
+        modelShader.setFloat("fogParams.fEnd", 20.0f);
+        modelShader.setFloat("fogParams.fDensity", 0.04f);
+        modelShader.setInt("fogParams.iEquation", FOG_EQUATION_EXP);
+    }
 
     // Load models.
     //displayLoadingMsg("Loading city", &textShader, &win);
@@ -238,8 +248,6 @@ int main() {
             modelShader.setMat4("projection", projection);
             modelShader.setMat4("view", view);
             modelShader.setMat4("model", model);
-            modelShader.setVec2("fogPosition", glm::vec2(20, 30));
-            modelShader.setVec4("fogColor", glm::vec4(glm::vec3(0.2f),1.0f));
             modelShader.setVec3("viewPos", camera.pos);
             modelShader.setVec3("material.emissionColor", glm::vec3(0));
             //city.draw(modelShader);

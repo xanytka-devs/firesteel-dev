@@ -3,14 +3,13 @@ layout (location = 0) out vec4 frag_COLOR;
 layout (location = 1) out vec4 frag_BRIGHTNESS;
 
 in VS_OUT {
-	vec3 view_POS;
+    vec3 view_POS;
     vec3 frag_POS;
     vec2 frag_UV;
     vec3 frag_NORMAL;
     vec3 frag_TAN;
     vec3 frag_BITAN;
     mat3 tan_MATRIX;
-	float fog_FACTOR;
 } fs_in;
 
 struct Material {
@@ -83,13 +82,35 @@ float LinearizeDepth(float depth) {
     return (2.0 * near * far) / (far + near - z * (far - near));	
 }
 
-uniform vec4 fogColor;
 uniform int lightingType;
 uniform bool sRGBLighting;
 uniform samplerCube skybox;
 vec3 calcDirLight  (vec4 diffMap, vec4 specMap, vec4 emisMap, vec4 normMap);
 vec3 calcPointLight(int pLightIndex, vec4 diffMap, vec4 specMap, vec4 emisMap, vec4 normMap);
 vec3 calcSpotLight (int sLightIndex, vec4 diffMap, vec4 specMap, vec4 emisMap, vec4 normMap);
+
+uniform struct FogParameters {
+	vec3 vFogColor; // Fog color
+	float fStart; // This is only for linear fog
+	float fEnd; // This is only for linear fog
+	float fDensity; // For exp and exp2 equation
+	
+	int iEquation; // 0 = linear, 1 = exp, 2 = exp2
+} fogParams;
+
+float getFogFactor(float fFogCoord) {
+	float fResult = 0.0;
+	if(fogParams.iEquation == 0)
+		fResult = (fogParams.fEnd-fFogCoord)/(fogParams.fEnd-fogParams.fStart);
+	else if(fogParams.iEquation == 1)
+		fResult = exp(-fogParams.fDensity*fFogCoord);
+	else if(fogParams.iEquation == 2)
+		fResult = exp(-pow(fogParams.fDensity*fFogCoord, 2.0));
+		
+	fResult = 1.0-clamp(fResult, 0.0, 1.0);
+	
+	return fResult;
+}
 
 vec3 TangentLightPos;
 vec3 TangentViewPos;
@@ -138,8 +159,11 @@ void main() {
 		// skybox
 		result += skyboxCalc;
 	} else result = diffMap.rgb;
+	// fog
+	float fFogCoord = abs(gl_FragCoord.z/gl_FragCoord.w);
+	result = mix(result, fogParams.vFogColor, getFogFactor(fFogCoord));
 	switch(DrawMode) {
-		case 0: frag_COLOR = vec4(result, transparency) * (fs_in.fog_FACTOR*fogColor);	break;
+		case 0: frag_COLOR = vec4(result, transparency);								break;
 		case 1: frag_COLOR = vec4(vec3(LinearizeDepth(gl_FragCoord.z) / far), 1.0);		break;
 		case 2: frag_COLOR = specMap;													break;
 		case 3: frag_COLOR = vec4(fs_in.frag_NORMAL * 0.5 + 0.5,1.0);					break;
