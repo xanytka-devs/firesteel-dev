@@ -70,8 +70,8 @@
 		log(std::string(t_msg1) + t_msg2 + t_msg3 + t_msg4 + t_msg5 + "\n");
 	}
 	static void log_critical(const char* t_msg1, const char* t_msg2 = "", const char* t_msg3 = "", const char* t_msg4 = "", const char* t_msg5 = "") {
-		log("[CRIT] ", CMD_BG_RED + CMD_F_WHITE);
-		log(std::string(t_msg1) + t_msg2 + t_msg3 + t_msg4 + t_msg5 + "\n");
+		log("[CRIT]", CMD_BG_RED + CMD_F_WHITE);
+		log(std::string(" ") + t_msg1 + t_msg2 + t_msg3 + t_msg4 + t_msg5 + "\n");
 	}
 	/// Logs message to console with specified color and prompt.
 	static void log(std::string t_msg, const int t_mod = CMD_F_WHITE);

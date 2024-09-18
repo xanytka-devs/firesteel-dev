@@ -69,7 +69,7 @@ namespace LearningOpenGL {
     private:
         unsigned int quadVAO = 0, quadVBO = 0;
         unsigned int FBO = 0, FBOtexture = 0, RBO = 0;
-        unsigned int FBOtextures[11];
+        unsigned int FBOtextures[11]{};
         size_t FBOtexturesSize = 1;
 
         void createBuffers(int tWidth, int tHeight) {

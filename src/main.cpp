@@ -10,6 +10,8 @@ using namespace LearningOpenGL;
 #include <stdio.h>
 #include <time.h>
 #include <../include/utils/imgui/markdown.hpp>
+#include <../include/audio/base.hpp>
+#include <../include/audio/wav.hpp>
 
 Camera camera(glm::vec3(0.0f, 0.0f, 3.0f), glm::vec3(0, 0, -90));
 float lastX = 800 / 2.0f;
@@ -198,9 +200,68 @@ int main() {
     FSImGui::MD::LoadFonts("res/fonts/Ubuntu-Regular.ttf", "res/fonts/Ubuntu-Bold.ttf", 14, 15.4);
     LOG_INFO("ImGui ready");
     std::string newsTxtLoaded = StrFromFile("News.md");
+    //OpenAL.
+    char const* device_name = nullptr;
+    device_name = alcGetString(NULL, ALC_DEFAULT_DEVICE_SPECIFIER);
+    ALCdevice* openALDevice = alcOpenDevice(device_name);
+    if (!openALDevice) {
+        LOG_CRIT("OpenAL default device couldn't be open (How?).")
+        return 0;
+    }
 
-    camera.farPlane = 10000;
+    ALCcontext* openALContext = alcCreateContext(openALDevice, (ALCint*)nullptr);
+    ALCboolean contextMadeCurrent = false;
+    alcMakeContextCurrent(openALContext);
+
+    std::uint8_t channels;
+    std::int32_t sampleRate;
+    std::uint8_t bitsPerSample;
+    std::vector<char> soundData;
+    FSOAL::load_wav("res/audio/coin.wav", channels, sampleRate, bitsPerSample, soundData);
+
+    alGetError(); // clear error code 
+    ALuint buffer;
+    alGenBuffers(1, &buffer);
+    if (alGetError() != AL_NO_ERROR) {
+        std::cout << "ERRRR\n";
+        return 1;
+    }
+
+    ALenum format = 0;
+    if (channels == 1 && bitsPerSample == 8)
+        format = AL_FORMAT_MONO8;
+    else if (channels == 1 && bitsPerSample == 16)
+        format = AL_FORMAT_MONO16;
+    else if (channels == 2 && bitsPerSample == 8)
+        format = AL_FORMAT_STEREO8;
+    else if (channels == 2 && bitsPerSample == 16)
+        format = AL_FORMAT_STEREO16;
+    else {
+        std::cerr << "ERROR: unrecognised format: " << std::to_string(channels) << " channels, " << std::to_string(bitsPerSample) << " bps"
+            << std::endl;
+    }
+
+    alGetError(); // clear error code 
+    alBufferData(buffer, format, soundData.data(), soundData.size(), sampleRate);
+    //soundData.clear(); // erase the sound in RAM
+    if (alGetError() != AL_NO_ERROR) {
+        std::cout << "ERRRR\n";
+        return 1;
+    }
+
+    ALuint source;
+    alGenSources(1, &source);
+    alSourcef(source, AL_PITCH, 1.f);
+    alSource3f(source, AL_POSITION, 0, 0, 0);
+    alSource3f(source, AL_VELOCITY, 0, 0, 0);
+    alSourcei(source, AL_LOOPING, AL_FALSE);
+    alSourcei(source, AL_BUFFER, buffer);
+    ALfloat maxGain = 0.01f;
+    alSourcef(source, AL_GAIN, maxGain);
+    alSourcePlay(source);
+
 #pragma endregion
+
     LOG_STATE("UPDATE LOOP");
     // Rendering.
     while(win.isOpen()) {
@@ -476,6 +537,12 @@ int main() {
     LOG_STATE("SHUTDOWN");
     FSImGui::Shutdown();
     LOG_INFO("ImGui terminated");
+    // OpenAL.
+    alDeleteSources(1, &source);
+    alDeleteBuffers(1, &buffer);
+
+    alcCloseDevice(openALDevice);
+    alcDestroyContext(openALContext);
     // Quitting.
     win.terminate();
     LOG_INFO("Window terminated");
