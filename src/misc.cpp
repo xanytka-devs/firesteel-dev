@@ -25,11 +25,11 @@ bool Mouse::m_buttons_changed[GLFW_MOUSE_BUTTON_LAST] = { 0 };
 
 #ifdef WIN32
 #include <windows.h>
-void Log::log(std::string t_msg, const int t_mod) {
+void Log::log(const std::string& tMsg, const int t_mod) {
 	SetConsoleTitleA("firesteel Debug Output"); //Set cmd title.
 	HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE);//Get cmd handle.
 	SetConsoleTextAttribute(hConsole, t_mod); //Set cmd text color.
-	printf(t_msg.c_str()); //Print msg.
+	printf(tMsg.c_str()); //Print msg.
 }
 void Log::clear() {
 	system("cls");

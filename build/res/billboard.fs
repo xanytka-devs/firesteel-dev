@@ -1,7 +1,8 @@
 #version 330 core
 
 in vec2 frag_UV;
-out vec4 frag_COLOR;
+layout (location = 0) out vec4 frag_COLOR;
+layout (location = 1) out vec4 frag_BRIGHTNESS;
 
 uniform sampler2D diffuse0;
 uniform int DrawMode;
@@ -21,4 +22,5 @@ void main() {
 	
 	if(DrawMode==0) frag_COLOR = texColor * vec4(color, 1.0);
 	else if(DrawMode==1) frag_COLOR = vec4(vec3(LinearizeDepth(gl_FragCoord.z) / far), 1.0);
+	frag_BRIGHTNESS = vec4(vec3(0),1);
 }

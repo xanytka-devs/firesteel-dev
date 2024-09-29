@@ -4,6 +4,8 @@ out vec4 FragColor;
 in vec2 frag_UV;
 
 uniform sampler2D screenTexture;
+uniform sampler2D bloomBlur;
+uniform bool bloom;
 uniform int AAMethod;
 uniform vec2 screenSize;
 
@@ -179,9 +181,31 @@ vec3 FXAA() {
 	return texture(screenTexture,finalUv).rgb;
 }
 
-uniform bool sRGBLighting;
 uniform float exposure;
-uniform vec3 chromaticOffset;
+
+bool horizontal = false;
+float weight[5] = float[] (0.252 * 4, 0.319 * 4, 0.128 * 4, 0.045 * 4, 0.001 / 4);
+vec3 calcBloom() {
+	vec3 final = vec3(0);
+	for(int i =0;i<2;i++) {
+		vec2 tex_offset = 1.0 / textureSize(bloomBlur, 0); // gets size of single texel
+		vec3 result = texture(bloomBlur, frag_UV).rgb * weight[0];
+		if(horizontal) {
+			for(int i = 1; i < 5; ++i) {
+				result += texture(bloomBlur, frag_UV + vec2(tex_offset.x * i, 0.0)).rgb * weight[i];
+				result += texture(bloomBlur, frag_UV - vec2(tex_offset.x * i, 0.0)).rgb * weight[i];
+			}
+		} else {
+			for(int i = 1; i < 5; ++i) {
+				result += texture(bloomBlur, frag_UV + vec2(0.0, tex_offset.y * i)).rgb * weight[i];
+				result += texture(bloomBlur, frag_UV - vec2(0.0, tex_offset.y * i)).rgb * weight[i];
+			}
+		}
+		horizontal = !horizontal;
+		final += result;
+	}
+	return final;
+}
 
 void main() {
 	////Kernel operations.
@@ -211,11 +235,11 @@ void main() {
     //vec3 col = vec3(0.0);
     //for(int i = 0; i < 9; i++)
     //    col += sampleTex[i] * kernel[i];
-    //
-    //FragColor = vec4(col, 1.0);
+	//
+	//FragColor = vec4(col, 1.0);
 	
 	////Grayscale filter.
-	//FragColor = texture(screenTexture, TexCoords);
+	//FragColor = texture(screenTexture, frag_UV);
     //float average = 0.2126 * FragColor.r + 0.7152 * FragColor.g + 0.0722 * FragColor.b;
     //FragColor = vec4(average, average, average, 1.0);
 	
@@ -228,12 +252,15 @@ void main() {
 	//else if(colSum<0.75 && colSum>0.25)
 	//	FragColor = vec4(1, 0, 0, 1);
 	
+	vec3 col = vec3(0);
+	
 	// anti-alising
-    vec3 col = vec3(0);
 	if(AAMethod==1) col = FXAA();
+	
+	// bloom
+	col += calcBloom();
 	
     // exposure tone mapping
     vec3 mapped = vec3(1.0) - exp(-col * exposure);
-	if(!sRGBLighting) mapped = pow(mapped, vec3(1.0 / 2.2));
     FragColor = vec4(mapped,1);
 }

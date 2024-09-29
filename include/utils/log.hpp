@@ -5,6 +5,7 @@
 #include <string>
 #include <iostream>
 
+#define LOG_C(...) Log::log_c(__VA_ARGS__);
 #define LOG(...) Log::log_ntag(__VA_ARGS__);
 #define LOG_INFO(...) Log::log_info(__VA_ARGS__);
 #define LOG_STATE(...) Log::log_state(__VA_ARGS__);
@@ -50,39 +51,43 @@
 
 #endif
 #ifndef NDEBUG
-	static void log_ntag(const char* t_msg1, const char* t_msg2 = "", const char* t_msg3 = "", const char* t_msg4 = "", const char* t_msg5 = "") {
-		log(std::string("") + t_msg1 + t_msg2 + t_msg3 + t_msg4 + t_msg5 + "\n");
+	static void log_c(const std::string& tMsg, const int t_mod = CMD_F_WHITE) {
+		log(tMsg + "\n", t_mod);
 	}
-	static void log_info(const char* t_msg1, const char* t_msg2 = "", const char* t_msg3 = "", const char* t_msg4 = "", const char* t_msg5 = "") {
+	static void log_ntag(const std::string& tMsg) {
+		log(tMsg + "\n");
+	}
+	static void log_info(const std::string& tMsg) {
 		log("[INFO] ", CMD_F_GRAY);
-		log(std::string(t_msg1) + t_msg2 + t_msg3 + t_msg4 + t_msg5 + "\n");
+		log(tMsg + "\n");
 	}
-	static void log_state(const char* t_msg1, const char* t_msg2 = "", const char* t_msg3 = "", const char* t_msg4 = "", const char* t_msg5 = "") {
+	static void log_state(const std::string& tMsg) {
 		log("[STATE] ", CMD_F_LBLUE);
-		log(std::string(t_msg1) + t_msg2 + t_msg3 + t_msg4 + t_msg5 + "\n");
+		log(tMsg + "\n");
 	}
-	static void log_warn(const char* t_msg1, const char* t_msg2 = "", const char* t_msg3 = "", const char* t_msg4 = "", const char* t_msg5 = "") {
+	static void log_warn(const std::string& tMsg) {
 		log("[WARN] ", CMD_F_YELLOW);
-		log(std::string(t_msg1) + t_msg2 + t_msg3 + t_msg4 + t_msg5 + "\n");
+		log(tMsg + "\n");
 	}
-	static void log_error(const char* t_msg1, const char* t_msg2 = "", const char* t_msg3 = "", const char* t_msg4 = "", const char* t_msg5 = "") {
+	static void log_error(const std::string& tMsg) {
 		log("[ERRR] ", CMD_F_RED);
-		log(std::string(t_msg1) + t_msg2 + t_msg3 + t_msg4 + t_msg5 + "\n");
+		log(tMsg + "\n");
 	}
-	static void log_critical(const char* t_msg1, const char* t_msg2 = "", const char* t_msg3 = "", const char* t_msg4 = "", const char* t_msg5 = "") {
+	static void log_critical(const std::string& tMsg) {
 		log("[CRIT]", CMD_BG_RED + CMD_F_WHITE);
-		log(std::string(" ") + t_msg1 + t_msg2 + t_msg3 + t_msg4 + t_msg5 + "\n");
+		log(tMsg + "\n");
 	}
 	/// Logs message to console with specified color and prompt.
-	static void log(std::string t_msg, const int t_mod = CMD_F_WHITE);
+	static void log(const std::string& tMsg, const int t_mod = CMD_F_WHITE);
 	static void clear();
 #else
-	static void log_ntag(const char* t_msg1, const char* t_msg2 = "", const char* t_msg3 = "", const char* t_msg4 = "", const char* t_msg5 = "") { }
-	static void log_info(const char* t_msg1, const char* t_msg2 = "", const char* t_msg3 = "", const char* t_msg4 = "", const char* t_msg5 = "") { }
-	static void log_state(const char* t_msg1, const char* t_msg2 = "", const char* t_msg3 = "", const char* t_msg4 = "", const char* t_msg5 = "") { }
-	static void log_warn(const char* t_msg1, const char* t_msg2 = "", const char* t_msg3 = "", const char* t_msg4 = "", const char* t_msg5 = "") { }
-	static void log_error(const char* t_msg1, const char* t_msg2 = "", const char* t_msg3 = "", const char* t_msg4 = "", const char* t_msg5 = "") { }
-	static void log_critical(const char* t_msg1, const char* t_msg2 = "", const char* t_msg3 = "", const char* t_msg4 = "", const char* t_msg5 = "") { }
+	static void log_c        (const std::string& tMsg, const int t_mod = CMD_F_WHITE) { }
+	static void log_ntag     (const std::string& tMsg) { }
+	static void log_info     (const std::string& tMsg) { }
+	static void log_state    (const std::string& tMsg) { }
+	static void log_warn     (const std::string& tMsg) { }
+	static void log_error    (const std::string& tMsg) { }
+	static void log_critical (const std::string& tMsg) { }
 #endif
 };
 

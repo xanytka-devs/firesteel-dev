@@ -3,7 +3,8 @@
 namespace FSImGui {
     class MD {
     public:
-        static void LoadFonts(std::string tH2FontPath, std::string tH3FontPath, float tFontSize = 12.0f, float tH1FontSize = 13.2f) {
+        static void LoadFonts(const std::string& tH2FontPath, const std::string& tH3FontPath,
+            const float tFontSize = 12.0f, const float tH1FontSize = 13.2f) {
             ImGuiIO& io = ImGui::GetIO();
             // Bold headings H2 and H3
             H2 = io.Fonts->AddFontFromFileTTF(tH2FontPath.c_str(), tFontSize, nullptr, io.Fonts->GetGlyphRangesCyrillic());

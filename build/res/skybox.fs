@@ -1,5 +1,6 @@
 #version 330 core
-out vec4 frag_COLOR;
+layout (location = 0) out vec4 frag_COLOR;
+layout (location = 1) out vec4 frag_BRIGHTNESS;
 
 in vec3 frag_POS;
 
@@ -16,4 +17,5 @@ float LinearizeDepth(float depth) {
 void main() {
 	if(DrawMode==1) frag_COLOR = vec4(vec3(LinearizeDepth(gl_FragCoord.z) / far), 1.0);
     else frag_COLOR = texture(skybox, frag_POS);
+    frag_BRIGHTNESS = vec4(0.0, 0.0, 0.0, 1.0);
 }

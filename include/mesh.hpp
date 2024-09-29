@@ -72,7 +72,6 @@ namespace LearningOpenGL {
             unsigned int normalNr = 0;
             unsigned int heightNr = 0;
             unsigned int emisNr = 0;
-            shader->enable();
             shader->setVec4("material.ambient", glm::vec4(ambient, 1));
 
             shader->setVec4("material.diffuse", glm::vec4(diffuse, 1));

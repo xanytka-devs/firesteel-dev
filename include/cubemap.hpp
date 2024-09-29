@@ -43,7 +43,7 @@ namespace LearningOpenGL {
                     glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i,
                         0, color_mode, w, h, 0, color_mode, GL_UNSIGNED_BYTE, data);
                 else
-                    LOG_ERRR("Failed to load texture at \"", (const char*)m_faces[i], "\".");
+                    LOG_ERRR(std::string("Failed to load texture at \"") + (const char*)m_faces[i] + "\".");
                 //Free data.
                 stbi_image_free(data);
             }
@@ -53,6 +53,8 @@ namespace LearningOpenGL {
             glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
             glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
             glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+
+            glActiveTexture(GL_TEXTURE0);
         }
 
         void bind() const {

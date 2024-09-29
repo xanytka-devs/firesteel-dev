@@ -45,10 +45,6 @@ struct PointLight {
 	vec3 ambient;
 	vec3 diffuse;
 	vec3 specular;
-	
-	float constant;
-	float linear;
-	float quadratic;
 };
 struct SpotLight {
 	vec3 position;
@@ -60,9 +56,6 @@ struct SpotLight {
 	
 	float cutOff;
 	float outerCutOff;
-	float constant;
-	float linear;
-	float quadratic;
 };
 
 uniform DirectionalLight dirLight;
@@ -83,7 +76,6 @@ float LinearizeDepth(float depth) {
 }
 
 uniform int lightingType;
-uniform bool sRGBLighting;
 uniform samplerCube skybox;
 vec3 calcDirLight  (vec4 diffMap, vec4 specMap, vec4 emisMap, vec4 normMap);
 vec3 calcPointLight(int pLightIndex, vec4 diffMap, vec4 specMap, vec4 emisMap, vec4 normMap);
@@ -103,9 +95,9 @@ float getFogFactor(float fFogCoord) {
 	if(fogParams.iEquation == 0)
 		fResult = (fogParams.fEnd-fFogCoord)/(fogParams.fEnd-fogParams.fStart);
 	else if(fogParams.iEquation == 1)
-		fResult = exp(-fogParams.fDensity*fFogCoord);
+		fResult = exp(-fogParams.fDensity*(fFogCoord-fogParams.fStart));
 	else if(fogParams.iEquation == 2)
-		fResult = exp(-pow(fogParams.fDensity*fFogCoord, 2.0));
+		fResult = exp(-pow(fogParams.fDensity*(fFogCoord-fogParams.fStart), 2.0));
 		
 	fResult = 1.0-clamp(fResult, 0.0, 1.0);
 	
@@ -224,12 +216,8 @@ vec3 calcPointLight(int pLightIndex, vec4 diffMap, vec4 specMap, vec4 emisMap, v
     vec3 specular = specMap.rgb * spec * pointLights[pLightIndex].specular;
 	
 	// attenuation
-	float attDistance    = length(pointLights[pLightIndex].position - fs_in.frag_POS);
-	float attenuation = 0.0;
-	if(!sRGBLighting)
-		attenuation = 1.0 / (pointLights[pLightIndex].constant + pointLights[pLightIndex].linear * attDistance + 
-				pointLights[pLightIndex].quadratic * (attDistance * attDistance));
-	else attenuation = 1.0 / attDistance;
+	float attDistance = length(pointLights[pLightIndex].position - fs_in.frag_POS);
+	float attenuation = 1.0 / attDistance;
 	
 	return (ambient + diffuse + specular) * attenuation;
 }
@@ -263,12 +251,8 @@ vec3 calcSpotLight(int sLightIndex, vec4 diffMap, vec4 specMap, vec4 emisMap, ve
     specular *= intensity;
 	
 	// attenuation
-	float attDistance    = length(spotLights[sLightIndex].position - fs_in.frag_POS);
-	float attenuation = 0.0;
-	if(!sRGBLighting)
-		attenuation = 1.0 / (spotLights[sLightIndex].constant + spotLights[sLightIndex].linear * attDistance + 
-				spotLights[sLightIndex].quadratic * (attDistance * attDistance));
-	else attenuation = 1.0 / attDistance;
+	float attDistance = length(spotLights[sLightIndex].position - fs_in.frag_POS);
+	float attenuation = 1.0 / attDistance;
 	
 	return (ambient + diffuse + specular) * attenuation;
 }

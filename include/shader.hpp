@@ -49,7 +49,7 @@ namespace LearningOpenGL {
                 if (hasGeomShader) geometryCode = gShaderStream.str();
             }
             catch (std::ifstream::failure& e) {
-                LOG_WARN("Error while reading shader files: ", e.what());
+                LOG_WARN(std::string("Error while reading shader files: ") + e.what());
             }
             const char* vShaderCode = vertexCode.c_str();
             const char* fShaderCode = fragmentCode.c_str();
@@ -148,14 +148,14 @@ namespace LearningOpenGL {
                 glGetShaderiv(shader, GL_COMPILE_STATUS, &success);
                 if (!success) {
                     glGetShaderInfoLog(shader, 1024, NULL, infoLog);
-                    LOG_ERRR("Shader compilation error:\n", infoLog);
+                    LOG_ERRR(std::string("Shader compilation error:\n") + infoLog);
                 }
             }
             else {
                 glGetProgramiv(shader, GL_LINK_STATUS, &success);
                 if (!success) {
                     glGetProgramInfoLog(shader, 1024, NULL, infoLog);
-                    LOG_ERRR("Program compilation error:\n", infoLog);
+                    LOG_ERRR(std::string("Program compilation error:\n") + infoLog);
                 }
             }
         }

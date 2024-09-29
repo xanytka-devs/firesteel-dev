@@ -8,7 +8,7 @@
 std::string StrFromFile(std::string tPath) {
     std::filesystem::path path(tPath);
     if(!std::filesystem::exists(path)) {
-        LOG_WARN("File at \"", tPath.c_str(), "\" doesn't seem to exist.");
+        LOG_WARN("File at \"" + tPath + "\" doesn't seem to exist.");
         return "File at \"" + tPath + "\" doesn't seem to exist.";
     }
     // Open the stream to 'lock' the file.
@@ -58,6 +58,10 @@ std::string StrASCIIToUpper(std::string tStr) {
     return tStr;
 }
 
+glm::vec3 float3ToVec3(float* tF) {
+    return glm::vec3(tF[0], tF[1], tF[2]);
+}
+
 #include "UtfConv.hpp"
 std::string StrToLower(std::string tStr) {
     return reinterpret_cast<const char*>(Utf8StrMakeLwrUtf8Str(reinterpret_cast<const unsigned char*>(tStr.c_str())));
@@ -97,7 +101,7 @@ unsigned int TextureFromFile(const std::string& tPath, bool tGamma = false) {
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     }
     else
-        LOG_ERRR("Texture failed to load at path: ", tPath.c_str());
+        LOG_ERRR("Texture failed to load at path: " + tPath);
     stbi_image_free(data);
     return textureID;
 }

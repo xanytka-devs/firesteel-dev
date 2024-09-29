@@ -3,18 +3,25 @@
 #include "common.hpp"
 
 namespace LearningOpenGL {
+
 	class Window {
 	public:
 		Window(int t_width = 800, int t_height = 600, bool t_vsync = false) :
 			mPtr(NULL), mWidth(t_width), mHeight(t_height), mVSync(t_vsync), mClearColor(glm::vec3(0)), mClosed(false) {}
 
-		bool initialize(const char* t_title = "Firesteel App", bool t_fullscreen = false) {
+		bool initialize(const char* t_title = "Firesteel App", bool t_fullscreen = false,
+            size_t tContextMajor = 3, size_t tContextMinor = 3) {
             // Initialize and configure.
-            LOG_INFO("Creating window \"", t_title, "\"");
-            glfwInit();
+            LOG_INFO(std::string("Creating window \"") + t_title + "\"");
+            if(glfwInit() == GLFW_FALSE) return false;
+#if _DEBUG
+            glfwWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, true);
+#else
+            glfwWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, false);
+#endif // _DEBUG
             glfwWindowHint(GL_FRAMEBUFFER_SRGB, GL_TRUE);
-            glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
-            glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
+            glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, tContextMajor);
+            glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, tContextMinor);
             glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
             glfwSetErrorCallback(errorCallback);
 #ifdef __APPLE__
@@ -116,7 +123,7 @@ namespace LearningOpenGL {
             glViewport(0, 0, width, height);
         }
         static void errorCallback(int tEC, const char* tDescription) {
-            LOG_ERRR("GLFW Error(", std::to_string(tEC).c_str(), "): ", tDescription);
+            LOG_ERRR("GLFW Error(" + std::to_string(tEC) + "): " + tDescription);
         }
 	};
 }
