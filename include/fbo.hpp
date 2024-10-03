@@ -1,3 +1,6 @@
+#ifndef FS_FBO
+#define FS_FBO
+
 #include "common.hpp"
 #include "shader.hpp"
 
@@ -6,21 +9,21 @@ namespace LearningOpenGL {
     public:
         Framebuffer() { }
 
-        Framebuffer(int tWidth, int tHeight, size_t tFBOTextures = 1) {
+        Framebuffer(const int& tWidth, const int& tHeight, const size_t& tFBOTextures = 1) {
             mSize = glm::vec2(tWidth, tHeight);
             createBuffers(tFBOTextures);
         }
-        Framebuffer(glm::vec2 tSize, size_t tFBOTextures = 1) {
+        Framebuffer(const glm::vec2& tSize, const size_t& tFBOTextures = 1) {
             mSize = tSize;
             createBuffers(tFBOTextures);
         }
 
-        void scale(int tWidth, int tHeight) {
+        void scale(const int& tWidth, const int& tHeight) {
             mSize = glm::vec2(tWidth, tHeight);
             scaleBuffers();
         }
 
-        void scale(glm::vec2 tSize) {
+        void scale(const glm::vec2& tSize) {
             mSize = tSize;
             scaleBuffers();
         }
@@ -62,7 +65,7 @@ namespace LearningOpenGL {
             glEnableVertexAttribArray(1);
             glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)(2 * sizeof(float)));
         }
-        void drawQuad(Shader* tShader) const {
+        void drawQuad(const Shader* tShader) const {
             tShader->enable();
             glBindVertexArray(quadVAO);
             glActiveTexture(GL_TEXTURE0);
@@ -70,7 +73,7 @@ namespace LearningOpenGL {
             glDrawArrays(GL_TRIANGLES, 0, 6);
         }
 
-        unsigned int getID(size_t tID = 0) const { return FBOtextures[tID]; }
+        unsigned int getID(const size_t& tID = 0) const { return FBOtextures[tID]; }
         glm::vec2 getSize() const { return mSize; }
     private:
         glm::vec2 mSize = glm::vec2(0);
@@ -79,7 +82,7 @@ namespace LearningOpenGL {
         unsigned int FBOtextures[11]{};
         size_t FBOsSize = 1;
 
-        void createBuffers(size_t tFBOTexs) {
+        void createBuffers(const size_t& tFBOTexs) {
             FBOsSize = tFBOTexs;
             glActiveTexture(GL_TEXTURE0);
             //FBO creation.
@@ -128,3 +131,5 @@ namespace LearningOpenGL {
         }
     };
 }
+
+#endif // !FS_FBO

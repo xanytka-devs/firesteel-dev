@@ -1,5 +1,5 @@
-#ifndef LOG_H
-#define LOG_H
+#ifndef FS_LOG_H
+#define FS_LOG_H
 
 #include <sstream>
 #include <string>
@@ -91,4 +91,4 @@
 #endif
 };
 
-#endif // LOG_H
+#endif // !FS_LOG_H

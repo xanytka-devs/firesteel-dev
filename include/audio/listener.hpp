@@ -1,5 +1,5 @@
-#ifndef FSOAL_LISTENER
-#define FSOAL_LISTENER
+#ifndef FS_OAL_LISTENER
+#define FS_OAL_LISTENER
 
 #include "defenitions.hpp"
 
@@ -38,4 +38,4 @@ namespace FSOAL {
 
 }
 
-#endif // !FSOAL_LISTENER
+#endif // !FS_OAL_LISTENER

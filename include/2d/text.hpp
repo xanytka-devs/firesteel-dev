@@ -1,3 +1,6 @@
+#ifndef FS_TEXT
+#define FS_TEXT
+
 #include <../include/common.hpp>
 #include <filesystem>
 #include <string>
@@ -162,3 +165,5 @@ namespace LearningOpenGL {
 	};
 
 }
+
+#endif // !FS_TEXT

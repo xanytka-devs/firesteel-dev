@@ -1,5 +1,5 @@
-#ifndef JOYSTICK_H
-#define JOYSTICK_H
+#ifndef FS_JOYSTICK_H
+#define FS_JOYSTICK_H
 
 #include <../include/common.hpp>
 
@@ -133,4 +133,4 @@ namespace LearningOpenGL {
 	};
 }
 
-#endif // JOYSTICK_H
+#endif // !FS_JOYSTICK_H

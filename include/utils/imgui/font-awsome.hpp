@@ -1,6 +1,8 @@
+#ifndef FS_IMGUI_FA_H
+#define FS_IMGUI_FA_H
+
 #include "base.hpp"
 #include <../external/imgui/IconsFontAwesome6.h>
-
 
 namespace FSImGui {
 
@@ -19,3 +21,5 @@ namespace FSImGui {
 	}
 
 }
+
+#endif // !FS_IMGUI_FA_H

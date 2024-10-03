@@ -1,5 +1,5 @@
-#ifndef SHADER_H
-#define SHADER_H
+#ifndef FS_SHADER_H
+#define FS_SHADER_H
 
 #include "common.hpp"
 
@@ -161,4 +161,4 @@ namespace LearningOpenGL {
         }
     };
 }
-#endif
+#endif // !FS_SHADER_H

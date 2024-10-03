@@ -1,5 +1,5 @@
-#ifndef UTILS_H
-#define UTILS_H
+#ifndef FS_UTILS_H
+#define FS_UTILS_H
 
 #include <iostream>
 #include <fstream>
@@ -177,6 +177,6 @@ std::string FileDialog::save() const {
         return szFile;
     return default_file;
 }
-#endif // WIN32
+#endif // !WIN32
 
-#endif // UTILS_H
+#endif // !FS_UTILS_H

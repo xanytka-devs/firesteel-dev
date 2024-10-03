@@ -1,5 +1,5 @@
-#ifndef FSOAL_DEF
-#define FSOAL_DEF
+#ifndef FS_OAL_DEF
+#define FS_OAL_DEF
 
 #include <../include/common.hpp>
 #include <utility>
@@ -37,4 +37,4 @@ namespace FSOAL {
 
 }
 
-#endif // !FSOAL_DEF
+#endif // !FS_OAL_DEF

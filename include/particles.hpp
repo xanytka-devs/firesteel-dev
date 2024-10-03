@@ -1,5 +1,5 @@
-#ifndef PARTICLES_H
-#define PARTICLES_H
+#ifndef FS_PARTICLES_H
+#define FS_PARTICLES_H
 
 #include "common.hpp"
 #include "utils/utils.hpp"
@@ -29,7 +29,7 @@ namespace LearningOpenGL {
         unsigned int maxParticles;
         glm::vec3 emitterPosition;
 
-        ParticleSystem(glm::vec3 tPosition, unsigned int tMaxParticles = 1000, std::string tTexturePath = "") {
+        ParticleSystem(const glm::vec3& tPosition, const unsigned int& tMaxParticles = 1000, const std::string& tTexturePath = "") {
             emitterPosition = tPosition;
             maxParticles = tMaxParticles;
             init();
@@ -60,7 +60,7 @@ namespace LearningOpenGL {
             glBindVertexArray(0);
         }
 
-        void update(float dt) {
+        void update(const float& dt) {
             for (unsigned int i = 0; i < maxParticles; ++i) {
                 Particle& p = particles[i];
                 p.Life -= dt; // Уменьшение времени жизни
@@ -68,19 +68,19 @@ namespace LearningOpenGL {
                     p.Position += p.Velocity * dt; // Обновление позиции
                     p.Color.a -= dt * 2.5f; // Затухание
                 } else {
-                    respawnParticle(p); // Перерождение частицы
+                    respawn(p); // Перерождение частицы
                 }
             }
         }
 
-        void respawnParticle(Particle& particle) const {
+        void respawn(Particle& particle) const {
             particle.Position = emitterPosition;
             particle.Velocity = glm::vec3(10, 0, 0);
             particle.Color = glm::vec4(RandomFloat(), RandomFloat(), RandomFloat(), 1.0f);
             particle.Life = 1 + RandomFloat();
         }
 
-        void draw(Shader* shader) {
+        void draw(const Shader* shader) {
             glBlendFunc(GL_SRC_ALPHA, GL_ONE);
             shader->enable();
             glBindVertexArray(VAO);
@@ -107,4 +107,4 @@ namespace LearningOpenGL {
 
 }
 
-#endif // PARTICLES_H
+#endif // !FS_PARTICLES_H

@@ -1,5 +1,5 @@
-#ifndef INPUT_H
-#define INPUT_H
+#ifndef FS_INPUT_H
+#define FS_INPUT_H
 
 #include <../include/input/keyboard.hpp>
 #include <../include/input/mouse.hpp>
@@ -21,4 +21,4 @@ namespace LearningOpenGL {
 	};
 }
 
-#endif // INPUT_H
+#endif // !FS_INPUT_H

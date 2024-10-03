@@ -1,5 +1,5 @@
-#ifndef FSIMGUI_BASE
-#define FSIMGUI_BASE
+#ifndef FS_IMGUI_BASE
+#define FS_IMGUI_BASE
 
 #include <../external/imgui/imgui.h>
 #include <../external/imgui/backends/imgui_impl_glfw.h>
@@ -90,4 +90,4 @@ namespace FSImGui {
 
 }
 
-#endif // !FSIMGUI_BASE
+#endif // !FS_IMGUI_BASE

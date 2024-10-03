@@ -1,3 +1,6 @@
+#ifndef FS_IMGUI_MARKDOWN_H
+#define FS_IMGUI_MARKDOWN_H
+
 #include "base.hpp"
 
 namespace FSImGui {
@@ -63,3 +66,5 @@ ImFont* FSImGui::MD::H1 = NULL;
 ImFont* FSImGui::MD::H2 = NULL;
 ImFont* FSImGui::MD::H3 = NULL;
 ImGui::MarkdownConfig FSImGui::MD::mdConfig{};
+
+#endif // !FS_IMGUI_MARKDOWN_H

@@ -1,10 +1,11 @@
-#ifndef MESH_H
-#define MESH_H
+#ifndef FS_MESH_H
+#define FS_MESH_H
 
 #include "common.hpp"
 #include <glm/gtc/matrix_transform.hpp>
 
 #include "shader.hpp"
+#include "texture.hpp"
 
 #include <string>
 #include <vector>
@@ -29,12 +30,6 @@ namespace LearningOpenGL {
         float Weights[MAX_BONE_INFLUENCE];
     };
 
-    struct Texture {
-        unsigned int id=0;
-        std::string type;
-        std::string path;
-    };
-
     class Mesh {
     public:
         /// Mesh Data.
@@ -49,14 +44,14 @@ namespace LearningOpenGL {
         glm::vec3 height{ 0.f };
 
         /// Constructor with textures.
-        Mesh(std::vector<Vertex> tVertices, std::vector<unsigned int> tIndices, std::vector<Texture> tTextures)
+        Mesh(const std::vector<Vertex>& tVertices, const std::vector<unsigned int>& tIndices, const std::vector<Texture>& tTextures)
             : vertices(tVertices), indices(tIndices), textures(tTextures) {
             mNoTextures = (tTextures.size()==0);
             setupMesh();
         }
 
         /// Constructor without textures.
-        Mesh(std::vector<Vertex> t_vertices, std::vector<unsigned int> t_indices,
+        Mesh(const std::vector<Vertex>& t_vertices, const std::vector<unsigned int>& t_indices,
             glm::vec3 t_diffuse, glm::vec3 t_specular, glm::vec3 t_emis, glm::vec3 t_height)
             : vertices(t_vertices), indices(t_indices),
             diffuse(t_diffuse), specular(t_specular), emission(t_emis), height(t_height) {
@@ -65,50 +60,39 @@ namespace LearningOpenGL {
         }
 
         /// Render the mesh.
-        void draw(Shader* shader) {
+        void draw(const Shader* shader) {
             // Bind appropriate textures.
-            unsigned int diffuseNr = 0;
-            unsigned int specularNr = 0;
-            unsigned int normalNr = 0;
-            unsigned int heightNr = 0;
-            unsigned int emisNr = 0;
+            size_t diffuseNr = 0;
+            size_t specularNr = 0;
+            size_t normalNr = 0;
+            size_t heightNr = 0;
+            size_t emisNr = 0;
             shader->setVec4("material.ambient", glm::vec4(ambient, 1));
-
             shader->setVec4("material.diffuse", glm::vec4(diffuse, 1));
-            shader->setInt("material.diffuse0", 0);
-
             shader->setVec4("material.specular", glm::vec4(specular, 1));
-            shader->setInt("material.specular0", 0);
-
             shader->setVec4("material.emission", glm::vec4(emission, 1));
-            shader->setInt("material.emission0", 0);
-
             shader->setVec4("material.normal", glm::vec4(normal, 1));
-            shader->setInt("material.normal0", 0);
-
             shader->setBool("noTextures", true);
             if(!mNoTextures) {
                 shader->setBool("noTextures", false);
-                glActiveTexture(GL_TEXTURE0);
-                glBindTexture(GL_TEXTURE_2D, 0);
+                Texture::unbind();
                 for (unsigned int i = 0; i < textures.size(); i++) {
-                    glActiveTexture(GL_TEXTURE0 + i);
                     // Retrieve texture number.
-                    std::string number;
+                    size_t number = 0;
                     std::string name = textures[i].type;
-                    if (name == "diffuse")
-                        number = std::to_string(diffuseNr++);
-                    else if (name == "specular")
-                        number = std::to_string(specularNr++);
-                    else if (name == "normal")
-                        number = std::to_string(normalNr++);
-                    else if (name == "emission")
-                        number = std::to_string(emisNr++);
-                    else if (name == "height")
-                        number = std::to_string(heightNr++);
+                    if(name == "diffuse")
+                        number = diffuseNr++;
+                    else if(name == "specular")
+                        number = specularNr++;
+                    else if(name == "normal")
+                        number = normalNr++;
+                    else if(name == "emission")
+                        number = emisNr++;
+                    else if(name == "height")
+                        number = heightNr++;
                     // Now set the sampler to the correct texture unit.
-                    shader->setInt("material." + name + number, i);
-                    glBindTexture(GL_TEXTURE_2D, textures[i].id);
+                    textures[i].bind(i);
+                    shader->setInt("material." + name + std::to_string(number), i);
                 }
             }
 
@@ -117,7 +101,7 @@ namespace LearningOpenGL {
             glDrawElements(GL_TRIANGLES, static_cast<unsigned int>(indices.size()), GL_UNSIGNED_INT, 0);
             glBindVertexArray(0);
             // Always good practice to set everything back to defaults once configured.
-            glActiveTexture(GL_TEXTURE0);
+            Texture::unbind();
         }
 
     private:
@@ -165,4 +149,4 @@ namespace LearningOpenGL {
         }
     };
 }
-#endif
+#endif // !FS_MESH_H

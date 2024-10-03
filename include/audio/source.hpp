@@ -1,5 +1,5 @@
-#ifndef FSOAL_SOURCE
-#define FSOAL_SOURCE
+#ifndef FS_OAL_SOURCE
+#define FS_OAL_SOURCE
 
 #include "defenitions.hpp"
 #define DR_WAV_IMPLEMENTATION
@@ -233,4 +233,4 @@ namespace FSOAL {
 
 }
 
-#endif // !FSOAL_SOURCE
+#endif // !FS_OAL_SOURCE

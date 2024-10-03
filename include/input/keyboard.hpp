@@ -1,5 +1,5 @@
-#ifndef KEYBOARD_H
-#define KEYBOARD_H
+#ifndef FS_KEYBOARD_H
+#define FS_KEYBOARD_H
 
 #include <../include/common.hpp>
 
@@ -190,4 +190,4 @@ namespace LearningOpenGL {
 	};
 }
 
-#endif // KEYBOARD_H
+#endif // !FS_KEYBOARD_H

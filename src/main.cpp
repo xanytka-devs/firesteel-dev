@@ -4,6 +4,7 @@
 #include "../include/entity.hpp"
 #include "../include/fbo.hpp"
 #include "../include/light.hpp"
+#include "../include/atmosphere.hpp"
 #include "../include/particles.hpp"
 #include "../include/window.hpp"
 using namespace LearningOpenGL;
@@ -69,46 +70,60 @@ glm::mat4 curModel;
 // Timers.
 bool threadRuntime[3] = { false,false, false };
 int _gpuThreadTime = 0;
+int _gpuThreadTimeNow = 0;
+int _gpuThreadTimeBefore = 0;
 static void _gpuTTCall() {
-    _gpuThreadTime+=1;
+    _gpuThreadTimeNow+=1;
 }
 static void _gpuThreadTimer() {
     threadRuntime[0] = true;
-    _gpuThreadTime = 0;
+    _gpuThreadTimeNow = 0;
     while (threadRuntime[0]) {
         _gpuTTCall();
     }
+    _gpuThreadTime = (_gpuThreadTimeNow - _gpuThreadTimeBefore) / 1000;
+    _gpuThreadTimeBefore = _gpuThreadTimeNow;
 }
 int _drawThreadTime = 0;
+int _drawThreadTimeNow = 0;
+int _drawThreadTimeBefore = 0;
 static void _drawTTCall() {
-    _drawThreadTime += 1;
+    _drawThreadTimeNow += 1;
 }
 static void _drawThreadTimer() {
     threadRuntime[1] = true;
-    _drawThreadTime = 0;
+    _drawThreadTimeNow = 0;
     while (threadRuntime[1]) {
         _drawTTCall();
     }
+    _drawThreadTime = (_drawThreadTimeNow - _drawThreadTimeBefore) / 1000;
+    _drawThreadTimeBefore = _drawThreadTimeNow;
 }
 int _imguiThreadTime = 0;
+int _imguiThreadTimeNow = 0;
+int _imguiThreadTimeBefore = 0;
 static void _imguiTTCall() {
-    _imguiThreadTime += 1;
+    _imguiThreadTimeNow += 1;
 }
 static void _imguiThreadTimer() {
     threadRuntime[2] = true;
-    _imguiThreadTime = 0;
+    _imguiThreadTimeNow = 0;
     while (threadRuntime[2]) {
         _imguiTTCall();
     }
+    _imguiThreadTime = (_imguiThreadTimeNow - _imguiThreadTimeBefore) / 1000;
+    _imguiThreadTimeBefore = _imguiThreadTimeNow;
 }
 #pragma endregion
 
-DirectionalLight dLight{
+Atmosphere atmos {
+    Atmosphere::DirectionalLight{
         glm::vec3(-0.2f, -1.0f, -0.3f), // Direction.
         // Lighting params.
         glm::vec3(0.f), // Ambient.
         glm::vec3(0.f), // Diffuse.
         glm::vec3(10.f) // Specular.
+    }
 };
 PointLight pLight{
     glm::vec3(-1.f, 0.75f, -1.f), // Position.
@@ -134,47 +149,14 @@ static void updateLightInShader(Shader* tShader) {
     tShader->setFloat("material.shininess", 64);
     tShader->setFloat("material.skyboxRefraction", 1.00f / 1.52f);
     tShader->setFloat("material.skyboxRefractionStrength", 0.025f);
-
-    tShader->setVec3("dirLight.direction", dLight.direction);
-    tShader->setVec3("dirLight.ambient", dLight.ambient);
-    tShader->setVec3("dirLight.diffuse", dLight.diffuse);
-    tShader->setVec3("dirLight.specular", dLight.specular);
-
+    atmos.setParams(tShader);
     tShader->setInt("numPointLights", 1);
-    tShader->setVec3("pointLights[0].position", pLight.position);
-    tShader->setVec3("pointLights[0].ambient", pLight.ambient);
-    tShader->setVec3("pointLights[0].diffuse", pLight.diffuse);
-    tShader->setVec3("pointLights[0].specular", pLight.specular);
-
+    pLight.setParams(tShader, 0);
     tShader->setInt("numSpotLights", 1);
-    tShader->setVec3("spotLights[0].position", sLight.position);
-    tShader->setVec3("spotLights[0].direction", sLight.direction);
-    tShader->setVec3("spotLights[0].ambient", sLight.ambient);
-    tShader->setVec3("spotLights[0].diffuse", sLight.diffuse);
-    tShader->setVec3("spotLights[0].specular", sLight.specular);
-    tShader->setFloat("spotLights[0].cutOff", sLight.cutOff);
-    tShader->setFloat("spotLights[0].outerCutOff", sLight.outerCutOff);
-}
-#define FOG_EQUATION_LINEAR 0
-#define FOG_EQUATION_EXP 1
-#define FOG_EQUATION_EXP2 2
-struct Fog {
-    float Start = 20.f;
-    float End = 25.f;
-    float Density = 0.04f;
-    glm::vec3 Color = glm::vec3(0.2f);
-    int equation = FOG_EQUATION_EXP;
-};
-Fog fog{};
-static void updateFogInShader(Shader* tShader, Fog* tFog) {
-    tShader->setVec3("fogParams.vFogColor", tFog->Color);
-    tShader->setFloat("fogParams.fStart", tFog->Start);
-    tShader->setFloat("fogParams.fEnd", tFog->End);
-    tShader->setFloat("fogParams.fDensity", tFog->Density);
-    tShader->setInt("fogParams.iEquation", tFog->equation);
+    sLight.setParams(tShader, 0);
 }
 
-void APIENTRY glDebugOutput(GLenum source,
+static void APIENTRY glDebugOutput(GLenum source,
     GLenum type,
     unsigned int id,
     GLenum severity,
@@ -343,14 +325,8 @@ int main() {
     Entity box("res/box/box.obj", glm::vec3(-2.f, 0.f, 1.f));
     displayLoadingMsg("Loading phone booth", &textShader, &win);
     Entity phoneBooth("res/phone-booth/X.obj", glm::vec3(10.f, 0.f, 10.f), glm::vec3(0), glm::vec3(0.5f));
-    Texture billTex;
-    billTex.id = TextureFromFile("res/yeah.png");
-    billTex.type = "texture_diffuse";
-    billTex.path = "res/yeah.png";
-    Texture pointLightBillTex;
-    pointLightBillTex.id = TextureFromFile("res/billboards/point_light.png");
-    pointLightBillTex.type = "texture_diffuse";
-    pointLightBillTex.path = "res/billboards/point_light.png";
+    Texture billTex{ TextureFromFile("res/yeah.png"), "texture_diffuse", "res/yeah.png" };
+    Texture pointLightBillTex{ TextureFromFile("res/billboards/point_light.png"), "texture_diffuse", "res/billboards/point_light.png" };
     // Cubemap.
     displayLoadingMsg("Creating cubemap", &textShader, &win);
     Cubemap sky;
@@ -414,7 +390,6 @@ int main() {
         else win.setCursorMode(Window::CUR_DISABLED);
         ppFBO.bind();
         updateLightInShader(&modelShader);
-        updateFogInShader(&modelShader, &fog);
         win.clearBuffers();
         wireframeEnabled ? glPolygonMode(GL_FRONT_AND_BACK, GL_LINE) : glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
         // View/projection transformations.
@@ -465,8 +440,7 @@ int main() {
         // Draw billboard.
         {
             quad.transform.Position = glm::vec3(0.f, 5.f, 0.f);
-            glActiveTexture(GL_TEXTURE0);
-            glBindTexture(GL_TEXTURE_2D, billTex.id);
+            billTex.bind();
             billboardShader.enable();
             billboardShader.setInt("DrawMode", drawMode);
             billboardShader.setMat4("projection", projection);
@@ -474,21 +448,18 @@ int main() {
             billboardShader.setVec3("color", glm::vec3(1));
             billboardShader.setVec2("size", glm::vec2(1.f));
             quad.draw(&billboardShader);
-            glBindTexture(GL_TEXTURE_2D, 0);
-            glActiveTexture(GL_TEXTURE0);
+            Texture::unbind();
         }
         // Draw point light billboard.
         if(displayGizmos) {
             quad.transform.Position = pLight.position;
             glDepthFunc(GL_ALWAYS);
-            glActiveTexture(GL_TEXTURE0);
-            glBindTexture(GL_TEXTURE_2D, pointLightBillTex.id);
+            pointLightBillTex.bind();
             billboardShader.setVec3("color", pLight.diffuse);
             billboardShader.setVec2("size", glm::vec2(0.25f));
             billboardShader.setMat4("model", model);
             quad.draw(&billboardShader);
-            glBindTexture(GL_TEXTURE_2D, 0);
-            glActiveTexture(GL_TEXTURE0);
+            Texture::unbind();
             glDepthFunc(GL_LESS);
         }
         // Skybox.
@@ -704,19 +675,19 @@ int main() {
             if(atmosphereOpen) {
                 ImGui::Begin("Atmosphere", &atmosphereOpen);
                 if(ImGui::CollapsingHeader("Directional Light")) {
-                    FSImGui::DragFloat3("Direction", &dLight.direction);
+                    FSImGui::DragFloat3("Direction", &atmos.directionalLight.direction);
                     ImGui::Separator();
-                    FSImGui::ColorEdit3("Ambient", &dLight.ambient);
-                    FSImGui::ColorEdit3("Diffuse", &dLight.diffuse);
-                    FSImGui::ColorEdit3("Specular", &dLight.specular);
+                    FSImGui::ColorEdit3("Ambient", &atmos.directionalLight.ambient);
+                    FSImGui::ColorEdit3("Diffuse", &atmos.directionalLight.diffuse);
+                    FSImGui::ColorEdit3("Specular", &atmos.directionalLight.specular);
                 }
                 if (ImGui::CollapsingHeader("Fog")) {
-                    FSImGui::ColorEdit3("Color", &fog.Color);
+                    FSImGui::ColorEdit3("Color", &atmos.fog.color);
                     ImGui::Separator();
-                    ImGui::DragFloat("Start", &fog.Start);
-                    ImGui::DragFloat("End", &fog.End);
-                    ImGui::DragFloat("Density", &fog.Density);
-                    ImGui::DragInt("Equation", &fog.equation, 1.f, 0, 2);
+                    ImGui::DragFloat("Start", &atmos.fog.start);
+                    ImGui::DragFloat("End", &atmos.fog.end);
+                    ImGui::DragFloat("Density", &atmos.fog.density);
+                    ImGui::DragInt("Equation", &atmos.fog.equation, 1, 0, 2);
                 }
 
                 ImGui::End();
@@ -783,22 +754,22 @@ int main() {
             if(lightingOpen){
                 ImGui::Begin("Lighting", &lightingOpen);
                 if(ImGui::CollapsingHeader("Point Light [1]")) {
-                    FSImGui::DragFloat3("Position", &pLight.position);
+                    FSImGui::DragFloat3("Position##pl0", &pLight.position);
                     ImGui::Separator();
-                    FSImGui::ColorEdit3("Ambient", &pLight.ambient);
-                    FSImGui::ColorEdit3("Diffuse", &pLight.diffuse);
-                    FSImGui::ColorEdit3("Specular", &pLight.specular);
+                    FSImGui::ColorEdit3("Ambient##pl0", &pLight.ambient);
+                    FSImGui::ColorEdit3("Diffuse##pl0", &pLight.diffuse);
+                    FSImGui::ColorEdit3("Specular##pl0", &pLight.specular);
                 }
                 if(ImGui::CollapsingHeader("Spot Light [1]")) {
-                    FSImGui::DragFloat3("Position", &sLight.position);
-                    FSImGui::DragFloat3("Direction", &sLight.direction);
+                    FSImGui::DragFloat3("Position##sl0", &sLight.position);
+                    FSImGui::DragFloat3("Direction##sl0", &sLight.direction);
                     ImGui::Separator();
-                    FSImGui::ColorEdit3("Ambient", &sLight.ambient);
-                    FSImGui::ColorEdit3("Diffuse", &sLight.diffuse);
-                    FSImGui::ColorEdit3("Specular", &sLight.specular);
+                    FSImGui::ColorEdit3("Ambient##sl0", &sLight.ambient);
+                    FSImGui::ColorEdit3("Diffuse##sl0", &sLight.diffuse);
+                    FSImGui::ColorEdit3("Specular##sl0", &sLight.specular);
                     ImGui::Separator();
-                    ImGui::DragFloat("Cut off", &sLight.cutOff);
-                    ImGui::DragFloat("Outer cut off", &sLight.outerCutOff);
+                    ImGui::DragFloat("Cut off##sl0", &sLight.cutOff);
+                    ImGui::DragFloat("Outer cut off##sl0", &sLight.outerCutOff);
                 }
                 ImGui::End();
             }

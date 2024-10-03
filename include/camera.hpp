@@ -1,5 +1,5 @@
-#ifndef CAMERA_H
-#define CAMERA_H
+#ifndef FS_CAMERA_H
+#define FS_CAMERA_H
 
 #include "common.hpp"
 #include <glm/gtc/matrix_transform.hpp>
@@ -59,4 +59,4 @@ namespace LearningOpenGL {
     };
 }
 
-#endif // CAMERA_H
+#endif // !FS_CAMERA_H

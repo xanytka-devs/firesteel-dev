@@ -1,15 +1,15 @@
-#ifndef WINDOW_H
-#define WINDOW_H
+#ifndef FS_WINDOW_H
+#define FS_WINDOW_H
 #include "common.hpp"
 
 namespace LearningOpenGL {
 
 	class Window {
 	public:
-		Window(int t_width = 800, int t_height = 600, bool t_vsync = false) :
+		Window(const int& t_width = 800, const int& t_height = 600, const bool& t_vsync = false) :
 			mPtr(NULL), mWidth(t_width), mHeight(t_height), mVSync(t_vsync), mClearColor(glm::vec3(0)), mClosed(false) {}
 
-		bool initialize(const char* t_title = "Firesteel App", bool t_fullscreen = false,
+		bool initialize(const char* t_title = "Firesteel App", const bool& t_fullscreen = false,
             size_t tContextMajor = 3, size_t tContextMinor = 3) {
             // Initialize and configure.
             LOG_INFO(std::string("Creating window \"") + t_title + "\"");
@@ -29,7 +29,7 @@ namespace LearningOpenGL {
 #endif
             // Window creation.
             GLFWmonitor* mon = NULL;
-            if (t_fullscreen) mon = glfwGetPrimaryMonitor();
+            if(t_fullscreen) mon = glfwGetPrimaryMonitor();
             mPtr = glfwCreateWindow(mWidth, mHeight, t_title, mon, NULL);
             if (mPtr == NULL) {
                 LOG_ERRR("Failed to create GLFW window");
@@ -51,10 +51,10 @@ namespace LearningOpenGL {
             //glfwSetKeyCallback(m_ptr, Keyboard::key_callback);
             return true;
 		}
-        void swapBuffers() {
+        void swapBuffers() const {
             glfwSwapBuffers(mPtr);
         }
-        void pollEvents() {
+        void pollEvents() const {
             glfwPollEvents();
         }
         void clearBuffers() const {
@@ -64,13 +64,13 @@ namespace LearningOpenGL {
         void close() {
             mClosed = true;
         }
-        void terminate() {
+        void terminate() const {
             glfwTerminate();
         }
-        void setClearColor(glm::vec3 tColor) {
+        void setClearColor(const glm::vec3& tColor) {
             mClearColor = tColor;
         }
-        void setVSync(bool tVSync) {
+        void setVSync(const bool& tVSync) {
             mVSync = tVSync;
             if (mVSync) glfwSwapInterval(1);
             else glfwSwapInterval(0);
@@ -93,7 +93,7 @@ namespace LearningOpenGL {
             CUR_UNAVAILABLE = 0x4
         };
 
-        void setCursorMode(Cursor tMode) {
+        void setCursorMode(const Cursor& tMode) {
             switch (tMode) {
             case Window::CUR_CAPTURED:
                 glfwSetInputMode(mPtr, GLFW_CURSOR, GLFW_CURSOR_CAPTURED);
@@ -127,4 +127,4 @@ namespace LearningOpenGL {
         }
 	};
 }
-#endif // WINDOW_H
+#endif // !FS_WINDOW_H

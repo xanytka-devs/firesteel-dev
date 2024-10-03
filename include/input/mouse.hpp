@@ -1,5 +1,5 @@
-#ifndef MOUSE_H
-#define MOUSE_H
+#ifndef FS_MOUSE_H
+#define FS_MOUSE_H
 
 #include <../include/common.hpp>
 
@@ -101,4 +101,4 @@ namespace LearningOpenGL {
 	};
 }
 
-#endif // MOUSE_H
+#endif // !FS_MOUSE_H

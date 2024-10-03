@@ -1,5 +1,5 @@
-#ifndef MODEL_H
-#define MODEL_H
+#ifndef FS_MODEL_H
+#define FS_MODEL_H
 
 #include "common.hpp"
 #include <glm/gtc/matrix_transform.hpp>
@@ -24,7 +24,7 @@ namespace LearningOpenGL {
         glm::vec3 Position = glm::vec3(0);
         glm::vec3 Rotation = glm::vec3(0);
         glm::vec3 Size = glm::vec3(1);
-        Transform(glm::vec3 tPos = glm::vec3(0), glm::vec3 tRot = glm::vec3(0), glm::vec3 tSize = glm::vec3(1)) {
+        Transform(const glm::vec3& tPos = glm::vec3(0), const glm::vec3& tRot = glm::vec3(0), const glm::vec3& tSize = glm::vec3(1)) {
             Position = tPos;
             Rotation = tRot;
             Size = tSize;
@@ -42,14 +42,14 @@ namespace LearningOpenGL {
         Entity() { }
 
         /// Constructor, expects a filepath to a 3D model.
-        Entity(std::string const& tPath,
+        Entity(const std::string& tPath,
             glm::vec3 tPos = glm::vec3(0), glm::vec3 tRot = glm::vec3(0), glm::vec3 tSize = glm::vec3(1)) {
             transform = Transform(tPos, tRot, tSize);
             loadModel(tPath);
         }
 
         /// Renders the model.
-        void draw(Shader* tShader) {
+        void draw(const Shader* tShader) {
             tShader->enable();
             tShader->setMat4("model", getMatrix());
             for(unsigned int i = 0; i < meshes.size(); i++)
@@ -70,7 +70,7 @@ namespace LearningOpenGL {
         static glm::mat4 modelMatrix;
 
         /// Loads a model with ASSIMP.
-        void loadModel(std::string const& tPath) {
+        void loadModel(const std::string& tPath) {
             // Read file via ASSIMP.
             Assimp::Importer importer;
             const aiScene* scene = importer.ReadFile(tPath, aiProcess_Triangulate | aiProcess_FlipUVs | aiProcess_CalcTangentSpace);
@@ -87,7 +87,7 @@ namespace LearningOpenGL {
         }
 
         /// Processes a node in a recursive fashion.
-        void processNode(aiNode* tNode, const aiScene* tScene) {
+        void processNode(const aiNode* tNode, const aiScene* tScene) {
             // Process each mesh located at the current node.
             for (unsigned int i = 0; i < tNode->mNumMeshes; i++) {
                 aiMesh* mesh = tScene->mMeshes[tNode->mMeshes[i]];
@@ -96,11 +96,10 @@ namespace LearningOpenGL {
             // Process each of the children nodes.
             for (unsigned int i = 0; i < tNode->mNumChildren; i++)
                 processNode(tNode->mChildren[i], tScene);
-
         }
 
         /// Processes all vertex data to a Mesh.
-        Mesh processMesh(aiMesh* tMesh, const aiScene* tScene) {
+        Mesh processMesh(const aiMesh* tMesh, const aiScene* tScene) {
             // Data to fill.
             std::vector<Vertex> vertices;
             std::vector<unsigned int> indices;
@@ -198,7 +197,7 @@ namespace LearningOpenGL {
         }
 
         /// Checks all material textures of a given type and loads the textures if they're not loaded yet.
-        std::vector<Texture> loadMaterialTextures(aiMaterial* mat, aiTextureType type, std::string typeName) {
+        std::vector<Texture> loadMaterialTextures(const aiMaterial* mat, const aiTextureType& type, const std::string& typeName) {
             std::vector<Texture> textures;
             for(unsigned int i = 0; i < mat->GetTextureCount(type); i++) {
                 aiString str;
@@ -215,7 +214,7 @@ namespace LearningOpenGL {
                 if(skip) continue;
                 // If texture hasn't been loaded already, load it.
                 Texture texture;
-                texture.id = TextureFromFile(this->directory + "/" + str.C_Str(), true);
+                texture.ID = TextureFromFile(this->directory + "/" + str.C_Str(), true);
                 texture.type = typeName;
                 texture.path = str.C_Str();
                 textures.push_back(texture);
@@ -228,4 +227,5 @@ namespace LearningOpenGL {
 }
 
 glm::mat4 LearningOpenGL::Entity::modelMatrix = glm::mat4(1);
-#endif
+
+#endif // ! FS_MODEL_H

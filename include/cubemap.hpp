@@ -1,3 +1,6 @@
+#ifndef FS_CUBEMAP_H
+#define FS_CUBEMAP_H
+
 #include "common.hpp"
 #include "shader.hpp"
 
@@ -73,7 +76,7 @@ namespace LearningOpenGL {
         //        files[3].c_str(), files[4].c_str(), files[5].c_str(), files[6].c_str());
         //}
 
-        void initialize(float t_size) {
+        void initialize(const float& t_size) {
             // set up vertices
             float skybox_vert[] = {
                 // positions          
@@ -129,7 +132,7 @@ namespace LearningOpenGL {
             glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
         }
 
-        void draw(Shader* t_shader) const {
+        void draw(const Shader* t_shader) const {
             glDepthFunc(GL_LEQUAL);
             t_shader->enable();
             //Skybox cube.
@@ -161,3 +164,5 @@ namespace LearningOpenGL {
         bool m_has_textures;
     };
 }
+
+#endif // !FS_CUBEMAP_H
