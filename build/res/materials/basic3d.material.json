@@ -1,0 +1,33 @@
+{
+	"version": 1,
+	"name": "Basic 3D",
+	"programm": {
+		"vert": "res/shaders/model.vs",
+		"frag": "res/shaders/model.fs"
+	},
+	"generated": [
+		"material.diffuse0": "tex",
+		"material.diffuse": "vec3",
+		"material.specular0": "tex",
+		"material.specular": "vec3",
+		"material.emission0": "tex",
+		"material.emission": "vec3",
+		"material.normal0": "tex",
+		"material.normal": "vec3",
+		"material.emissionFactor": "float",
+		"material.emissionColor": "vec3",
+		"material.shininess": "float",
+		"material.skyboxRefraction": "float",
+		"material.skyboxRefractionStrength": "float",
+		"noTextures": "bool",
+		"DrawMode": "int",
+		"numPointLights": "int",
+		"numSpotLights": "int",
+		"lightingType": "int",
+		"fogParams.vFogColor": "vec3",
+		"fogParams.fStart": "float",
+		"fogParams.fEnd": "float",
+		"fogParams.fDensity": "float",
+		"fogParams.iEquation": "int"
+	]
+}

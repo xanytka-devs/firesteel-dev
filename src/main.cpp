@@ -163,6 +163,7 @@ class EditorApp : public App {
     FSOAL::AudioLayer alBG{ 1.0f,1.0f };
     std::string newsTxtLoaded = "";
     virtual void onInitialize() override {
+        window.setIcon("app.png");
         // Getting ready text renderer.
         textShader = Shader("res/text.vs", "res/text.fs");
         TextRenderer::initialize();
@@ -234,8 +235,8 @@ class EditorApp : public App {
         phoneAmbience.play();
     }
     virtual void onUpdate() override {
-        if (!drawImGUI)
-            if (ppFBO.getSize() != window.getSize())
+        if(!drawImGUI)
+            if(ppFBO.getSize() != window.getSize())
                 ppFBO.scale(window.getSize());
         std::thread GPUThreadT(_gpuThreadTimer);
         // Input processing.
@@ -691,7 +692,6 @@ class EditorApp : public App {
             GPUThreadT.join();
         }
     }
-
     virtual void onShutdown() override {
         FSImGui::Shutdown();
         LOG_INFO("ImGui terminated");
@@ -704,7 +704,7 @@ class EditorApp : public App {
 
 int main() {
     EditorApp app{};
-    return app.start("Firesteel 0.2.0.4", 600, 800, false);
+    return app.start("Firesteel 0.2.0.4", 800, 600, WS_NORMAL);
 }
 
 static std::string getDrawModName() {

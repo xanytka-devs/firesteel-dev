@@ -21,14 +21,15 @@ namespace Firesteel {
 		void shutdown() {
 			window.close();
 		}
-		virtual int start(const char* tTitle, unsigned int tWinWidth, unsigned int tWinHeight, bool tFullscreen) {
+		virtual int start(const char* tTitle = "Firesteel App",
+            unsigned int tWinWidth = 800, unsigned int tWinHeight = 600, WindowState tWinState = WS_NORMAL) {
             LOG("Firesteel 0.2.0.3");
             LOG_C("[-   Dev branch  -]\n", CMD_F_PURPLE);
             LOG_STATE("STARTUP");
 			onPreInitialize();
             // Create window.
-            window = Window(tWinHeight, tWinWidth);
-            if(!window.initialize(tTitle, tFullscreen, BOUND_GL_VERSION_MAJOR, BOUND_GL_VERSION_MINOR))
+            window = Window(tWinWidth, tWinHeight);
+            if(!window.initialize(tTitle, tWinState, BOUND_GL_VERSION_MAJOR, BOUND_GL_VERSION_MINOR))
                 return 1;
             window.setClearColor(glm::vec3(0.185f, 0.15f, 0.1f));
 

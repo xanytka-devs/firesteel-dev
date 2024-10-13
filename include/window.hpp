@@ -4,15 +4,24 @@
 
 namespace Firesteel {
 
+    enum WindowState {
+        // Decorated window.
+        WS_NORMAL = 0x0,
+        // Undecorated fullscreen window.
+        WS_FULLSCREEN = 0x1,
+        // Undecorated fullscreen-sized window.
+        WS_BORDERLESS = 0x2
+    };
+
 	class Window {
 	public:
 		Window(const unsigned int& tWidth = 800, const unsigned int& tHeight = 600, const bool& tVsync = false) :
 			mPtr(NULL), mWidth(tWidth), mHeight(tHeight), mVSync(tVsync), mClearColor(glm::vec3(0)), mClosed(false) {}
 
-		bool initialize(const char* t_title = "Firesteel App", const bool& t_fullscreen = false,
+		bool initialize(const char* tTitle = "Firesteel App", const WindowState& tState = WS_NORMAL,
             size_t tContextMajor = 3, size_t tContextMinor = 3) {
             // Initialize and configure.
-            LOG_INFO(std::string("Creating window \"") + t_title + "\"");
+            LOG_INFO(std::string("Creating window \"") + tTitle + "\"");
             if(glfwInit() == GLFW_FALSE) return false;
 #if _DEBUG
             glfwWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, true);
@@ -23,14 +32,22 @@ namespace Firesteel {
             glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, static_cast<int>(tContextMajor));
             glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, static_cast<int>(tContextMinor));
             glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+            if(tState==WS_BORDERLESS) glfwWindowHint(GLFW_DECORATED, GLFW_FALSE);
+            else glfwWindowHint(GLFW_DECORATED, GLFW_TRUE);
             glfwSetErrorCallback(errorCallback);
 #ifdef __APPLE__
             glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
 #endif
             // Window creation.
             GLFWmonitor* mon = NULL;
-            if(t_fullscreen) mon = glfwGetPrimaryMonitor();
-            mPtr = glfwCreateWindow(mWidth, mHeight, t_title, mon, NULL);
+            if(tState==WS_FULLSCREEN || tState == WS_BORDERLESS) mon = glfwGetPrimaryMonitor();
+            if(tState==WS_BORDERLESS) {
+                const GLFWvidmode* vidm = glfwGetVideoMode(mon);
+                mWidth = vidm->width;
+                mHeight = vidm->height;
+                mon = nullptr;
+            }
+            mPtr = glfwCreateWindow(mWidth, mHeight, tTitle, mon, NULL);
             if (mPtr == NULL) {
                 LOG_ERRR("Failed to create GLFW window");
                 glfwTerminate();
@@ -66,6 +83,16 @@ namespace Firesteel {
         }
         void terminate() const {
             glfwTerminate();
+        }
+        void setIcon(const std::string& tIcon) {
+            GLFWimage images[1]{};
+            if(!std::filesystem::exists(tIcon)) {
+                LOG_ERRR("File '" + tIcon + "' doesn't exist.");
+                return;
+            }
+            images[0].pixels = stbi_load(tIcon.c_str(), &images[0].width, &images[0].height, 0, 4);
+            glfwSetWindowIcon(mPtr, 1, images);
+            stbi_image_free(images[0].pixels);
         }
         void setClearColor(const glm::vec3& tColor) {
             mClearColor = tColor;
