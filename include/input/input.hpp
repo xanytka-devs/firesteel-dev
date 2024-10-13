@@ -5,7 +5,7 @@
 #include <../include/input/mouse.hpp>
 #include <../include/input/joystick.hpp>
 
-namespace LearningOpenGL {
+namespace Firesteel {
 	class Input {
 	public:
 		static float get_horizontal_axis() {

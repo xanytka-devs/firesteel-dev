@@ -4,7 +4,7 @@
 #include "common.hpp"
 #include "shader.hpp"
 
-namespace LearningOpenGL {
+namespace Firesteel {
     class Framebuffer {
     public:
         Framebuffer() { }

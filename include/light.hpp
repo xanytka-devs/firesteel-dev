@@ -4,7 +4,7 @@
 #include <glm/glm.hpp>
 #include "shader.hpp"
 
-namespace LearningOpenGL {
+namespace Firesteel {
 	struct PointLight {
 		glm::vec3 position;
 		// Lighting params.

@@ -6,13 +6,13 @@
 
 #include "utils/utils.hpp"
 
-namespace LearningOpenGL {
+namespace Firesteel {
     class Cubemap {
     public:
         Cubemap()
             : m_has_textures(false), m_id(0), m_skybox_vao(0), m_skybox_vbo(0) {}
 
-        void load_m(const char* t_dir,
+        void load(const char* t_dir,
             const char* t_right = "right.png",
             const char* t_left = "left.png",
             const char* t_top = "top.png",

@@ -4,7 +4,7 @@
 #include "common.hpp"
 #include <glm/gtc/matrix_transform.hpp>
 
-namespace LearningOpenGL {
+namespace Firesteel {
     class Camera {
     public:
         // Position.

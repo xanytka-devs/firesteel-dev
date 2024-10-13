@@ -35,6 +35,14 @@ namespace FSOAL {
 			alGenSources(1, &mSource);
 			return alGetError() != AL_NO_ERROR;
 		}
+		bool initialize(std::string tSrc) {
+			alGetError(); // clear error code 
+			alGenBuffers(1, &mBuffer);
+			alGenSources(1, &mSource);
+			if(alGetError() != AL_NO_ERROR) return false;
+			load(tSrc);
+			return true;
+		}
 		void remove() const {
 			stop();
 			alDeleteSources(1, &mSource);

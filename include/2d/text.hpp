@@ -14,7 +14,7 @@ FT_Library ft;
 bool initialized;
 bool done;
 
-namespace LearningOpenGL {
+namespace Firesteel {
 	typedef struct {
 		unsigned int texture_id;	// Texture ID which is storing character.
 		glm::ivec2 size;			// Size of character.

@@ -3,7 +3,7 @@
 
 #include <../include/common.hpp>
 
-namespace LearningOpenGL {
+namespace Firesteel {
 	enum KeyCode {
 		SPACEBAR = 32,
 		APOSTROPHE = 39,  /* ' */

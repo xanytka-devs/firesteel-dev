@@ -3,7 +3,7 @@
 
 #include <../include/common.hpp>
 
-namespace LearningOpenGL {
+namespace Firesteel {
 	class Mouse {
 	public:
 		/// Set mouse cursor position.

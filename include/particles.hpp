@@ -6,7 +6,7 @@
 #include "shader.hpp"
 #include <glm/ext/matrix_transform.hpp>
 
-namespace LearningOpenGL {
+namespace Firesteel {
 
     struct Particle {
         glm::vec3 Position;
@@ -29,10 +29,10 @@ namespace LearningOpenGL {
         unsigned int maxParticles;
         glm::vec3 emitterPosition;
 
-        ParticleSystem(const glm::vec3& tPosition, const unsigned int& tMaxParticles = 1000, const std::string& tTexturePath = "") {
+        ParticleSystem(const glm::vec3& tPosition, const unsigned int& tMaxParticles = 1000, const std::string& tTexturePath = "",bool tInit = true) {
             emitterPosition = tPosition;
             maxParticles = tMaxParticles;
-            init();
+            if(tInit) init();
         }
 
         void init() {

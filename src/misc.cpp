@@ -1,5 +1,5 @@
 #include <../include/input/input.hpp>
-using namespace LearningOpenGL;
+using namespace Firesteel;
 
 bool Keyboard::m_keys[GLFW_KEY_LAST] = { 0 };
 bool Keyboard::m_keys_changed[GLFW_KEY_LAST] = { 0 };

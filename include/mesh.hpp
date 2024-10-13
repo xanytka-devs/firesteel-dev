@@ -10,7 +10,7 @@
 #include <string>
 #include <vector>
 
-namespace LearningOpenGL {
+namespace Firesteel {
 #define MAX_BONE_INFLUENCE 4
 
     struct Vertex {

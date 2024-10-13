@@ -6,8 +6,8 @@
 #include "../include/light.hpp"
 #include "../include/atmosphere.hpp"
 #include "../include/particles.hpp"
-#include "../include/window.hpp"
-using namespace LearningOpenGL;
+#include "../include/app.hpp"
+using namespace Firesteel;
 
 #include <stdio.h>
 #include <time.h>
@@ -25,12 +25,6 @@ Camera camera(glm::vec3(0.0f, 0.0f, 3.0f), glm::vec3(0, 0, -90));
 float lastX = 800 / 2.0f;
 float lastY = 600 / 2.0f;
 bool firstMouse = true;
-float deltaTime = 0.0f;
-float lastFrame = 0.0f;
-int fps = 0;
-double last_frame_fps = 0.f;
-double last_frame = 0.f;
-int frame_count = 0;
 
 int drawSelectMod = 0; // 0=Textures, 1=Lightning
 int drawMode = 0;
@@ -39,7 +33,7 @@ bool wireframeEnabled = false;
 bool drawNativeUI = true;
 bool drawImGUI = true;
 
-void processInput(Window* tWin, GLFWwindow* tPtr);
+void processInput(Window* tWin, GLFWwindow* tPtr, float tDeltaTime);
 void mouseCallback(GLFWwindow* window, double xposIn, double yposIn);
 void scrollCallback(GLFWwindow* window, double xoffset, double yoffset);
 /// Get current date/time, format is YYYY-MM-DD HH:mm:ss
@@ -156,244 +150,105 @@ static void updateLightInShader(Shader* tShader) {
     sLight.setParams(tShader, 0);
 }
 
-static void APIENTRY glDebugOutput(GLenum source,
-    GLenum type,
-    unsigned int id,
-    GLenum severity,
-    GLsizei length,
-    const char* message,
-    const void* userParam)
-{
-    // ignore non-significant error/warning codes
-    if (id == 131169 || id == 131185 || id == 131218 || id == 131204) return;
-
-    std::cout << "---------------" << std::endl;
-    std::cout << "Debug message (" << id << "): " << message << std::endl;
-
-    switch (source)
-    {
-    case GL_DEBUG_SOURCE_API:             std::cout << "Source: API"; break;
-    case GL_DEBUG_SOURCE_WINDOW_SYSTEM:   std::cout << "Source: Window System"; break;
-    case GL_DEBUG_SOURCE_SHADER_COMPILER: std::cout << "Source: Shader Compiler"; break;
-    case GL_DEBUG_SOURCE_THIRD_PARTY:     std::cout << "Source: Third Party"; break;
-    case GL_DEBUG_SOURCE_APPLICATION:     std::cout << "Source: Application"; break;
-    case GL_DEBUG_SOURCE_OTHER:           std::cout << "Source: Other"; break;
-    } std::cout << std::endl;
-
-    switch (type)
-    {
-    case GL_DEBUG_TYPE_ERROR:               std::cout << "Type: Error"; break;
-    case GL_DEBUG_TYPE_DEPRECATED_BEHAVIOR: std::cout << "Type: Deprecated Behaviour"; break;
-    case GL_DEBUG_TYPE_UNDEFINED_BEHAVIOR:  std::cout << "Type: Undefined Behaviour"; break;
-    case GL_DEBUG_TYPE_PORTABILITY:         std::cout << "Type: Portability"; break;
-    case GL_DEBUG_TYPE_PERFORMANCE:         std::cout << "Type: Performance"; break;
-    case GL_DEBUG_TYPE_MARKER:              std::cout << "Type: Marker"; break;
-    case GL_DEBUG_TYPE_PUSH_GROUP:          std::cout << "Type: Push Group"; break;
-    case GL_DEBUG_TYPE_POP_GROUP:           std::cout << "Type: Pop Group"; break;
-    case GL_DEBUG_TYPE_OTHER:               std::cout << "Type: Other"; break;
-    } std::cout << std::endl;
-
-    switch (severity)
-    {
-    case GL_DEBUG_SEVERITY_HIGH:         std::cout << "Severity: high"; break;
-    case GL_DEBUG_SEVERITY_MEDIUM:       std::cout << "Severity: medium"; break;
-    case GL_DEBUG_SEVERITY_LOW:          std::cout << "Severity: low"; break;
-    case GL_DEBUG_SEVERITY_NOTIFICATION: std::cout << "Severity: notification"; break;
-    } std::cout << std::endl;
-    std::cout << std::endl;
-}
-
-#define BOUND_GL_VERSION_MAJOR 4
-#define BOUND_GL_VERSION_MINOR 3
-
-int main() {
-#pragma region Startup
-    LOG(      "Firesteel 0.2.0.3");
-    LOG_C(    "[-   Dev branch  -]\n", CMD_F_PURPLE);
-    LOG_STATE("STARTUP");
-    // Create window.
-    Window win(800,600);
-    if(!win.initialize("FiresteelDev App 0.2.0.3",false, BOUND_GL_VERSION_MAJOR, BOUND_GL_VERSION_MINOR))
-        return 1;
-    win.setClearColor(glm::vec3(0.185f, 0.15f, 0.1f));
-
-    printf("\n");
-    //Check for Vulkan.
-    bool isVulkan = (glfwVulkanSupported() == 1);
-    LOG_INFO(isVulkan ? "Vulkan is supported on current machine."
-        : "Vulkan isn't supported on current machine.");
-    if (isVulkan) {
-        uint32_t glfwExtensionCount = 0;
-        const char** glfwExtensions;
-        glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
-
-        std::vector<const char*> extensions(glfwExtensions, glfwExtensions + glfwExtensionCount);
-        LOG_INFO("Vulkan extensions: ");
-        for (size_t i = 0; i < extensions.size(); i++) {
-            LOG_C(std::string("  ") + extensions[i]);
-        }
-        printf("\n");
-    }
-
-    // GLAD (OpenGL) init.
-    bool isOGL = (gladLoadGL(glfwGetProcAddress) != 0);
-
-    if(!isOGL) {
-        LOG_ERRR("OpenGL isn't supported on current machine.");
-        return -1;
-    } else LOG_INFO("OpenGL is supported on current machine.");
-    // OpenGL info.
-    LOG_INFO("OpenGL context created:");
-    LOG_INFO(std::string("	Vendor: ") + reinterpret_cast<const char*>(glGetString(GL_VENDOR)));
-    LOG_INFO(std::string("	Renderer: ") + reinterpret_cast<const char*>(glGetString(GL_RENDERER)));
-    LOG_INFO(std::string("	Version: ") + reinterpret_cast<const char*>(glGetString(GL_VERSION)) + "\n");
-
-    bool atLeastOneUnsup = false;
-    if(!glfwExtensionSupported("GL_ARB_debug_output")) {
-        LOG_ERRR("General debug output isn't supported.");
-        atLeastOneUnsup = true;
-    }
-    if(!glfwExtensionSupported("GL_AMD_debug_output")) {
-        LOG_ERRR("AMD debug output isn't supported.");
-        atLeastOneUnsup = true;
-    }
-    if(!glfwExtensionSupported("GL_ARB_direct_state_access")) {
-        LOG_ERRR("Official DSA isn't supported.");
-        atLeastOneUnsup = true;
-    }
-    if (!glfwExtensionSupported("GL_EXT_direct_state_access")) {
-        LOG_ERRR("Unofficial DSA isn't supported.");
-        atLeastOneUnsup = true;
-    }
-    if(atLeastOneUnsup) printf("\n");
-    int flags; glGetIntegerv(GL_CONTEXT_FLAGS, &flags);
-    if (flags & GL_CONTEXT_FLAG_DEBUG_BIT) {
-        // initialize debug output 
-        glEnable(GL_DEBUG_OUTPUT);
-        glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
-        if (BOUND_GL_VERSION_MAJOR >= 4) {
-            glDebugMessageCallback(glDebugOutput, nullptr);
-            glDebugMessageControl(GL_DONT_CARE, GL_DONT_CARE, GL_DONT_CARE, 0, nullptr, GL_TRUE);
-        }
-    }
-
-    // Getting ready text renderer.
-    Shader textShader("res/text.vs", "res/text.fs");
-    TextRenderer::initialize();
-    t.loadFont("res/fonts/vgasysr.ttf", 16);
-    // OpenGL setup.
-    displayLoadingMsg("Initializing OpenGL", &textShader, &win);
-    glEnable(GL_DEPTH_TEST);
-    glEnable(GL_STENCIL_TEST);
-    glEnable(GL_BLEND);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-    glEnable(GL_CULL_FACE);
-    glCullFace(GL_BACK);
-    glEnable(GL_FRAMEBUFFER_SRGB);
-    glfwSetCursorPosCallback(win.ptr(), mouseCallback);
-    glfwSetScrollCallback(win.ptr(), scrollCallback);
-    // OpenAL setup.
-    displayLoadingMsg("Initializing OpenAL", &textShader, &win);
-    FSOAL::initialize();
-    FSOAL::Source audio;
-    FSOAL::AudioLayer alBG{ 1.0f,1.0f };
-    audio.initialize();
-    audio.load("res/audio/elevator-music.mp3");
-    audio.setGain(0.2f);
-    audio.setLooping(true);
-    audio.play();
-    // OpenAL info.
-    LOG_INFO("OpenAL context created:");
-    LOG_INFO(std::string("	Device: ") + alcGetString(NULL, ALC_DEFAULT_DEVICE_SPECIFIER) + "\n");
-    // Shaders.
-    displayLoadingMsg("Compiling shaders", &textShader, &win);
-    Shader modelShader("res/model.vs", "res/model.fs");
-    Shader fboShader("res/fbo.vs", "res/fbo.fs");
-    Shader billboardShader("res/billboard.vs", "res/billboard.fs");
-    Shader particlesShader("res/particles.vs", "res/particles.fs");
-    Shader skyShader("res/skybox.vs", "res/skybox.fs");
-    ParticleSystem pS = ParticleSystem(glm::vec3(0, 0, 0), 500, "res/particle.png");
-
-    // Load models.
-    //displayLoadingMsg("Loading city", &textShader, &win);
-    //Transform city("res/city/scene.gltf");
-    displayLoadingMsg("Loading backpack", &textShader, &win);
-    Entity backpack("res/backpack/backpack.obj", glm::vec3(0.f, 0.f, -1.f), glm::vec3(0),glm::vec3(0.5));
-    displayLoadingMsg("Loading quad", &textShader, &win);
-    Entity quad("res/primitives/quad.obj");
-    displayLoadingMsg("Loading box", &textShader, &win);
-    Entity box("res/box/box.obj", glm::vec3(-2.f, 0.f, 1.f));
-    displayLoadingMsg("Loading phone booth", &textShader, &win);
-    Entity phoneBooth("res/phone-booth/X.obj", glm::vec3(10.f, 0.f, 10.f), glm::vec3(0), glm::vec3(0.5f));
-    Texture billTex{ TextureFromFile("res/yeah.png"), "texture_diffuse", "res/yeah.png" };
-    Texture pointLightBillTex{ TextureFromFile("res/billboards/point_light.png"), "texture_diffuse", "res/billboards/point_light.png" };
-    // Cubemap.
-    displayLoadingMsg("Creating cubemap", &textShader, &win);
+class EditorApp : public App {
+    Texture billTex, pointLightBillTex;
+    Framebuffer ppFBO, imguiFBO;
+    Shader textShader, modelShader, fboShader, billboardShader, particlesShader, skyShader;
+    ParticleSystem pS = ParticleSystem(glm::vec3(0, 0, 0), 500, "res/particle.png", false);
+    Entity backpack, quad, box, phoneBooth;
     Cubemap sky;
-    sky.load_m("res/FortPoint", "posz.jpg", "negz.jpg", "posy.jpg", "negy.jpg", "posx.jpg", "negx.jpg");
-    sky.initialize(100);
-    // Framebuffer.
-    displayLoadingMsg("Creating FBO", &textShader, &win);
-    Framebuffer ppFBO(win.getSize(), 2);
-    Framebuffer imguiFBO(win.getSize());
-    ppFBO.quad();
-    if(!ppFBO.isComplete()) LOG_ERRR("FBO isn't complete");
-    if(!imguiFBO.isComplete()) LOG_ERRR("FBO isn't complete");
-    camera.farPlane = 1000;
-    // ImGUI setup.
-    LOG_INFO("Initializing ImGui");
-    displayLoadingMsg("Initializing ImGui", &textShader, &win);
-    FSImGui::Initialize(&win);
-    FSImGui::LoadFont("res/fonts/Ubuntu-Regular.ttf", 14, true);
-    FSImGui::MD::LoadFonts("res/fonts/Ubuntu-Regular.ttf", "res/fonts/Ubuntu-Bold.ttf", 14, 15.4f);
-    LOG_INFO("ImGui ready");
-    std::string newsTxtLoaded = StrFromFile("News.md");
-    //OpenAL.
     FSOAL::Source phoneAmbience;
     FSOAL::AudioLayer alSFX{ 1.f,1.0f };
-    phoneAmbience.initialize();
-    phoneAmbience.load("res/audio/tone.wav");
-    phoneAmbience.setGain(0.1f);
-    phoneAmbience.setLooping(true);
-    phoneAmbience.setPostion(10.f, 0.f, 10.f);
+    FSOAL::Source audio;
+    FSOAL::AudioLayer alBG{ 1.0f,1.0f };
+    std::string newsTxtLoaded = "";
+    virtual void onInitialize() override {
+        // Getting ready text renderer.
+        textShader = Shader("res/text.vs", "res/text.fs");
+        TextRenderer::initialize();
+        t.loadFont("res/fonts/vgasysr.ttf", 16);
+        // OpenGL setup.
+        displayLoadingMsg("Initializing OpenGL", &textShader, &window);
+        glfwSetCursorPosCallback(window.ptr(), mouseCallback);
+        glfwSetScrollCallback(window.ptr(), scrollCallback);
+        // OpenAL setup.
+        displayLoadingMsg("Initializing OpenAL", &textShader, &window);
+        FSOAL::initialize();
+        audio.initialize("res/audio/elevator-music.mp3");
+        audio.setGain(0.2f);
+        audio.setLooping(true);
+        audio.play();
+        // OpenAL info.
+        LOG_INFO("OpenAL context created:");
+        LOG_INFO(std::string("	Device: ") + alcGetString(NULL, ALC_DEFAULT_DEVICE_SPECIFIER) + "\n");
+        // Shaders.
+        displayLoadingMsg("Compiling shaders", &textShader, &window);
+        modelShader = Shader("res/model.vs", "res/model.fs");
+        fboShader = Shader("res/fbo.vs", "res/fbo.fs");
+        billboardShader = Shader("res/billboard.vs", "res/billboard.fs");
+        particlesShader = Shader("res/particles.vs", "res/particles.fs");
+        skyShader = Shader("res/skybox.vs", "res/skybox.fs");
+        pS.init();
 
-    audio.remove();
-    audio.initialize();
-    audio.load("res/audio/harbour-port-ambience.wav");
-    audio.play();
-    phoneAmbience.play();
-
-#pragma endregion
-
-    LOG_STATE("UPDATE LOOP");
-    // Rendering.
-    while (win.isOpen()) {
+        // Load models.
+        //displayLoadingMsg("Loading city", &textShader, &window);
+        //Transform city("res/city/scene.gltf");
+        displayLoadingMsg("Loading backpack", &textShader, &window);
+        backpack = Entity("res/backpack/backpack.obj", glm::vec3(0.f, 0.f, -1.f), glm::vec3(0), glm::vec3(0.5));
+        displayLoadingMsg("Loading quad", &textShader, &window);
+        quad = Entity("res/primitives/quad.obj");
+        displayLoadingMsg("Loading box", &textShader, &window);
+        box = Entity("res/box/box.obj", glm::vec3(-2.f, 0.f, 1.f));
+        displayLoadingMsg("Loading phone booth", &textShader, &window);
+        phoneBooth = Entity("res/phone-booth/X.obj", glm::vec3(10.f, 0.f, 10.f), glm::vec3(0), glm::vec3(0.5f));
+        billTex = Texture{ TextureFromFile("res/yeah.png"), "texture_diffuse", "res/yeah.png" };
+        pointLightBillTex = Texture{ TextureFromFile("res/billboards/point_light.png"), "texture_diffuse", "res/billboards/point_light.png" };
+        // Cubemap.
+        displayLoadingMsg("Creating cubemap", &textShader, &window);
+        sky.load("res/FortPoint", "posz.jpg", "negz.jpg", "posy.jpg", "negy.jpg", "posx.jpg", "negx.jpg");
+        sky.initialize(100);
+        // Framebuffer.
+        displayLoadingMsg("Creating FBO", &textShader, &window);
+        ppFBO = Framebuffer(window.getSize(), 2);
+        imguiFBO = Framebuffer(window.getSize());
+        ppFBO.quad();
+        if (!ppFBO.isComplete()) LOG_ERRR("FBO isn't complete");
+        if (!imguiFBO.isComplete()) LOG_ERRR("FBO isn't complete");
+        camera.farPlane = 1000;
+        // ImGUI setup.
+        LOG_INFO("Initializing ImGui");
+        displayLoadingMsg("Initializing ImGui", &textShader, &window);
+        FSImGui::Initialize(&window);
+        FSImGui::LoadFont("res/fonts/Ubuntu-Regular.ttf", 14, true);
+        FSImGui::MD::LoadFonts("res/fonts/Ubuntu-Regular.ttf", "res/fonts/Ubuntu-Bold.ttf", 14, 15.4f);
+        LOG_INFO("ImGui ready");
+        newsTxtLoaded = StrFromFile("News.md");
+        //OpenAL.
+        phoneAmbience.initialize("res/audio/tone.wav");
+        phoneAmbience.setGain(0.1f);
+        phoneAmbience.setLooping(true);
+        phoneAmbience.setPostion(10.f, 0.f, 10.f);
+        audio.remove();
+        audio.initialize("res/audio/harbour-port-ambience.wav");
+        audio.play();
+        phoneAmbience.play();
+    }
+    virtual void onUpdate() override {
         if (!drawImGUI)
-            if (ppFBO.getSize() != win.getSize())
-                ppFBO.scale(win.getSize());
-        win.pollEvents();
+            if (ppFBO.getSize() != window.getSize())
+                ppFBO.scale(window.getSize());
         std::thread GPUThreadT(_gpuThreadTimer);
-        //Per-frame time logic.
-        float currentFrame = static_cast<float>(glfwGetTime());
-        deltaTime = currentFrame - lastFrame;
-        lastFrame = currentFrame;
-        frame_count++;
-        if (currentFrame - last_frame_fps >= 1.0) {
-            fps = frame_count;
-            frame_count = 0;
-            last_frame_fps = currentFrame;
-        }
         // Input processing.
-        processInput(&win, win.ptr());
+        processInput(&window, window.ptr(), deltaTime);
         audio.setPostion(camera.pos);
-        if (glfwGetMouseButton(win.ptr(), 1) != GLFW_PRESS) win.setCursorMode(Window::CUR_NORMAL);
-        else win.setCursorMode(Window::CUR_DISABLED);
+        if (glfwGetMouseButton(window.ptr(), 1) != GLFW_PRESS) window.setCursorMode(Window::CUR_NORMAL);
+        else window.setCursorMode(Window::CUR_DISABLED);
         ppFBO.bind();
         updateLightInShader(&modelShader);
-        win.clearBuffers();
+        window.clearBuffers();
         wireframeEnabled ? glPolygonMode(GL_FRONT_AND_BACK, GL_LINE) : glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
         // View/projection transformations.
-        glm::mat4 projection = camera.getProjection(win.aspect(), 1);
+        glm::mat4 projection = camera.getProjection(window.aspect(), 1);
         glm::mat4 view = camera.getView();
         glm::mat4 model = glm::mat4(1.0f);
         sLight.position = camera.pos;
@@ -451,7 +306,7 @@ int main() {
             Texture::unbind();
         }
         // Draw point light billboard.
-        if(displayGizmos) {
+        if (displayGizmos) {
             quad.transform.Position = pLight.position;
             glDepthFunc(GL_ALWAYS);
             pointLightBillTex.bind();
@@ -477,7 +332,7 @@ int main() {
             fboShader.enable();
             fboShader.setInt("AAMethod", 1);
             fboShader.setFloat("exposure", 1);
-            fboShader.setVec2("screenSize", win.getSize());
+            fboShader.setVec2("screenSize", window.getSize());
             fboShader.setVec3("chromaticOffset", glm::vec3(10));
             glActiveTexture(GL_TEXTURE1);
             glBindTexture(GL_TEXTURE_2D, ppFBO.getID(0));
@@ -485,45 +340,44 @@ int main() {
             glActiveTexture(GL_TEXTURE2);
             glBindTexture(GL_TEXTURE_2D, ppFBO.getID(1));
             fboShader.setInt("bloomBlur", 2);
-            if(drawImGUI) imguiFBO.bind();
-            win.clearBuffers();
+            if (drawImGUI) imguiFBO.bind();
+            window.clearBuffers();
             ppFBO.drawQuad(&fboShader);
-            if(drawImGUI) {
+            if (drawImGUI) {
                 imguiFBO.unbind();
-                win.clearBuffers();
+                window.clearBuffers();
             }
         }
         threadRuntime[1] = false;
         DrawThreadT.join();
         // Draw UI.
-        if(drawNativeUI) {
-            t.draw(&textShader, std::to_string(fps), win.getSize(), glm::vec2(8.0f, 568.0f), glm::vec2(1.5f), glm::vec3(0));
-            t.draw(&textShader, std::to_string(fps), win.getSize(), glm::vec2(10.0f, 570.0f), glm::vec2(1.5f), glm::vec3(1, 0, 0));
+        if (drawNativeUI) {
+            t.draw(&textShader, std::to_string(fps), window.getSize(), glm::vec2(8.0f, 568.0f), glm::vec2(1.5f), glm::vec3(0));
+            t.draw(&textShader, std::to_string(fps), window.getSize(), glm::vec2(10.0f, 570.0f), glm::vec2(1.5f), glm::vec3(1, 0, 0));
 
-            t.draw(&textShader, currentDateTime(), win.getSize(), glm::vec2(8.0f, 553.0f), glm::vec2(1.f), glm::vec3(0));
-            t.draw(&textShader, currentDateTime(), win.getSize(), glm::vec2(10.0f, 555.0f), glm::vec2(1.f), glm::vec3(1, 0, 0));
+            t.draw(&textShader, currentDateTime(), window.getSize(), glm::vec2(8.0f, 553.0f), glm::vec2(1.f), glm::vec3(0));
+            t.draw(&textShader, currentDateTime(), window.getSize(), glm::vec2(10.0f, 555.0f), glm::vec2(1.f), glm::vec3(1, 0, 0));
 
-            t.draw(&textShader, std::string("[V] VSync: ") + (win.getVSync() ? "ON" : "OFF"),
-                win.getSize(), glm::vec2(8.0f, 538.0f), glm::vec2(1.f), glm::vec3(0));
-            t.draw(&textShader, std::string("[V] VSync: ") + (win.getVSync() ? "ON" : "OFF"),
-                win.getSize(), glm::vec2(10.0f, 540.0f), glm::vec2(1.f), glm::vec3(1, 0, 0));
+            t.draw(&textShader, std::string("[V] VSync: ") + (window.getVSync() ? "ON" : "OFF"),
+                window.getSize(), glm::vec2(8.0f, 538.0f), glm::vec2(1.f), glm::vec3(0));
+            t.draw(&textShader, std::string("[V] VSync: ") + (window.getVSync() ? "ON" : "OFF"),
+                window.getSize(), glm::vec2(10.0f, 540.0f), glm::vec2(1.f), glm::vec3(1, 0, 0));
 
             t.draw(&textShader, "[Wheel] FOV: " + std::to_string((int)camera.fov),
-                win.getSize(), glm::vec2(8.0f, 523.0f), glm::vec2(1.f), glm::vec3(0));
+                window.getSize(), glm::vec2(8.0f, 523.0f), glm::vec2(1.f), glm::vec3(0));
             t.draw(&textShader, "[Wheel] FOV: " + std::to_string((int)camera.fov),
-                win.getSize(), glm::vec2(10.0f, 525.0f), glm::vec2(1.f), glm::vec3(1, 0, 0));
+                window.getSize(), glm::vec2(10.0f, 525.0f), glm::vec2(1.f), glm::vec3(1, 0, 0));
 
             if (drawSelectMod == 0) {
                 t.draw(&textShader, "[1-0] Shading: " + getDrawModName(),
-                    win.getSize(), glm::vec2(8.0f, 508.0f), glm::vec2(1.f), glm::vec3(0));
+                    window.getSize(), glm::vec2(8.0f, 508.0f), glm::vec2(1.f), glm::vec3(0));
                 t.draw(&textShader, "[1-0] Shading: " + getDrawModName(),
-                    win.getSize(), glm::vec2(10.0f, 510.0f), glm::vec2(1.f), glm::vec3(1, 0, 0));
-            }
-            else {
+                    window.getSize(), glm::vec2(10.0f, 510.0f), glm::vec2(1.f), glm::vec3(1, 0, 0));
+            } else {
                 t.draw(&textShader, "[1-4] Lighting: " + getLightingTypeName(),
-                    win.getSize(), glm::vec2(8.0f, 508.0f), glm::vec2(1.f), glm::vec3(0));
+                    window.getSize(), glm::vec2(8.0f, 508.0f), glm::vec2(1.f), glm::vec3(0));
                 t.draw(&textShader, "[1-4] Lighting: " + getLightingTypeName(),
-                    win.getSize(), glm::vec2(10.0f, 510.0f), glm::vec2(1.f), glm::vec3(1, 0, 0));
+                    window.getSize(), glm::vec2(10.0f, 510.0f), glm::vec2(1.f), glm::vec3(1, 0, 0));
             }
         }
         // Draw ImGui.
@@ -574,8 +428,8 @@ int main() {
                         }
                     }
                     ImGui::Separator();
-                    if (ImGui::MenuItem(u8"Закрыть (Esc)"))
-                        win.close();
+                    if(ImGui::MenuItem(u8"Закрыть (Esc)"))
+                        window.close();
                     ImGui::EndMenu();
                 }
                 if (ImGui::BeginMenu(u8" Окно")) {
@@ -612,12 +466,12 @@ int main() {
             ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
             ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 3.0f);
 
-            if(newsViewOpen) {
+            if (newsViewOpen) {
                 ImGui::Begin("News", &newsViewOpen);
                 FSImGui::MD::Text(newsTxtLoaded);
                 ImGui::End();
             }
-            if(sceneViewOpen) {
+            if (sceneViewOpen) {
                 ImGui::Begin("Scene", &sceneViewOpen);
                 ImVec2 winSceneSize = ImGui::GetWindowContentRegionMax();
                 winSceneSize.y -= 20;
@@ -633,7 +487,7 @@ int main() {
                 ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 3.0f);
 
                 // Guizmos.
-                if(displayGizmos) {
+                if (displayGizmos) {
                     curModel = backpack.getMatrix();
                     ImGuizmo::SetOwnerWindowName("Scene");
                     ImGuizmo::BeginFrame();
@@ -672,9 +526,9 @@ int main() {
                 }
                 ImGui::End();
             }
-            if(atmosphereOpen) {
+            if (atmosphereOpen) {
                 ImGui::Begin("Atmosphere", &atmosphereOpen);
-                if(ImGui::CollapsingHeader("Directional Light")) {
+                if (ImGui::CollapsingHeader("Directional Light")) {
                     FSImGui::DragFloat3("Direction", &atmos.directionalLight.direction);
                     ImGui::Separator();
                     FSImGui::ColorEdit3("Ambient", &atmos.directionalLight.ambient);
@@ -692,27 +546,27 @@ int main() {
 
                 ImGui::End();
             }
-            if(soundMixerOpen) {
+            if (soundMixerOpen) {
                 ImGui::Begin("Sound Mixer", &soundMixerOpen);
                 {
                     ImGui::BeginGroup();
                     ImGui::Text("Background");
                     ImGui::BeginDisabled(bgMuted);
-                    if(ImGui::VSliderFloat("##BackgroundSlider", ImVec2(40, 200), &alBG.gain, 0.0f, 1.0f, "")) {
+                    if (ImGui::VSliderFloat("##BackgroundSlider", ImVec2(40, 200), &alBG.gain, 0.0f, 1.0f, "")) {
                         audio.setGain(alBG);
                     }
                     std::string val = std::to_string(alBG.gain);
                     val = val.substr(0, 5);
                     ImGui::Text(val.c_str());
-                    if(ImGui::Knob("##BackgroundKnob", &alBG.pitch, 0.01f, 5.0f, 0.0f, "%.3f",
+                    if (ImGui::Knob("##BackgroundKnob", &alBG.pitch, 0.01f, 5.0f, 0.0f, "%.3f",
                         ImGuiKnobVariant_Wiper, 0.0f, ImGuiKnobFlags_NoTitle | ImGuiKnobFlags_NoInput)) {
                         audio.setPitch(alBG);
                     }
                     ImGui::EndDisabled();
-                    if(ImGui::Button("M##Background")) {
-                        if(!bgMuted) preMuteGain = alBG.gain;
+                    if (ImGui::Button("M##Background")) {
+                        if (!bgMuted) preMuteGain = alBG.gain;
                         bgMuted = !bgMuted;
-                        if(bgMuted) alBG.gain = 0;
+                        if (bgMuted) alBG.gain = 0;
                         else alBG.gain = preMuteGain;
                         audio.setGain(alBG);
                     }
@@ -726,21 +580,21 @@ int main() {
                     ImGui::BeginGroup();
                     ImGui::Text("SFX");
                     ImGui::BeginDisabled(sfxMuted);
-                    if(ImGui::VSliderFloat("##SFXSlider", ImVec2(40, 200), &alSFX.gain, 0.0f, 1.0f, "")) {
+                    if (ImGui::VSliderFloat("##SFXSlider", ImVec2(40, 200), &alSFX.gain, 0.0f, 1.0f, "")) {
                         phoneAmbience.setGain(alSFX);
                     }
                     std::string val = std::to_string(alSFX.gain);
                     val = val.substr(0, 5);
                     ImGui::Text(val.c_str());
-                    if(ImGui::Knob("##SFXKnob", &alSFX.pitch, 0.01f, 5.0f, 0.0f, "%.3f",
+                    if (ImGui::Knob("##SFXKnob", &alSFX.pitch, 0.01f, 5.0f, 0.0f, "%.3f",
                         ImGuiKnobVariant_Wiper, 0.0f, ImGuiKnobFlags_NoTitle | ImGuiKnobFlags_NoInput)) {
                         phoneAmbience.setPitch(alSFX);
                     }
                     ImGui::EndDisabled();
-                    if(ImGui::Button("M##SFX")) {
-                        if(!sfxMuted) preMuteGain = alSFX.gain;
+                    if (ImGui::Button("M##SFX")) {
+                        if (!sfxMuted) preMuteGain = alSFX.gain;
                         sfxMuted = !sfxMuted;
-                        if(sfxMuted) alSFX.gain = 0;
+                        if (sfxMuted) alSFX.gain = 0;
                         else alSFX.gain = preMuteGain;
                         phoneAmbience.setGain(alSFX);
                     }
@@ -751,16 +605,16 @@ int main() {
                 }
                 ImGui::End();
             }
-            if(lightingOpen){
+            if (lightingOpen) {
                 ImGui::Begin("Lighting", &lightingOpen);
-                if(ImGui::CollapsingHeader("Point Light [1]")) {
+                if (ImGui::CollapsingHeader("Point Light [1]")) {
                     FSImGui::DragFloat3("Position##pl0", &pLight.position);
                     ImGui::Separator();
                     FSImGui::ColorEdit3("Ambient##pl0", &pLight.ambient);
                     FSImGui::ColorEdit3("Diffuse##pl0", &pLight.diffuse);
                     FSImGui::ColorEdit3("Specular##pl0", &pLight.specular);
                 }
-                if(ImGui::CollapsingHeader("Spot Light [1]")) {
+                if (ImGui::CollapsingHeader("Spot Light [1]")) {
                     FSImGui::DragFloat3("Position##sl0", &sLight.position);
                     FSImGui::DragFloat3("Direction##sl0", &sLight.direction);
                     ImGui::Separator();
@@ -773,7 +627,7 @@ int main() {
                 }
                 ImGui::End();
             }
-            if(texViewOpen) {
+            if (texViewOpen) {
                 ImGui::Begin("Texture Viewer", &texViewOpen);
                 float wW = ImGui::GetWindowWidth();
                 int column = 3;
@@ -804,7 +658,7 @@ int main() {
                 glActiveTexture(GL_TEXTURE0);
                 ImGui::End();
             }
-            if(fullTexViewOpen) {
+            if (fullTexViewOpen) {
                 ImGui::Begin("Full Texture Viewer", &fullTexViewOpen);
                 glActiveTexture(GL_TEXTURE10);
                 glBindTexture(GL_TEXTURE_2D, texID);
@@ -818,7 +672,7 @@ int main() {
             GPUThreadT.join();
             threadRuntime[2] = false;
             ImGuiThreadT.join();
-            if(metricsOpen) {
+            if (metricsOpen) {
                 ImGui::Begin("Threads", &metricsOpen);
                 ImGui::Text(("FPS: " + std::to_string(fps)).c_str());
                 ImGui::Text(("Delta time: " + std::to_string(deltaTime)).c_str());
@@ -830,27 +684,27 @@ int main() {
             }
 
             // Rendering
-            FSImGui::Render(&win);
+            FSImGui::Render(&window);
         }
         if (!drawImGUI) {
             threadRuntime[0] = false;
             GPUThreadT.join();
         }
-        win.swapBuffers();
     }
-    LOG_STATE("SHUTDOWN");
-    FSImGui::Shutdown();
-    LOG_INFO("ImGui terminated");
-    // OpenAL.
-    phoneAmbience.remove();
-    audio.remove();
 
-    FSOAL::deinitialize();
-    // Quitting.
-    win.terminate();
-    LOG_INFO("Window terminated");
-    LOG_STATE("QUIT");
-	return 0;
+    virtual void onShutdown() override {
+        FSImGui::Shutdown();
+        LOG_INFO("ImGui terminated");
+        // OpenAL.
+        phoneAmbience.remove();
+        audio.remove();
+        FSOAL::deinitialize();
+    }
+};
+
+int main() {
+    EditorApp app{};
+    return app.start("Firesteel 0.2.0.4", 600, 800, false);
 }
 
 static std::string getDrawModName() {
@@ -895,12 +749,12 @@ static std::string getLightingTypeName() {
 }
 
 float speed_mult = 2.f;
-void processInput(Window* tWin, GLFWwindow* tPtr) {
+void processInput(Window* tWin, GLFWwindow* tPtr, float tDeltaTime) {
     if (glfwGetKey(tPtr, GLFW_KEY_ESCAPE) == GLFW_PRESS)
         tWin->close();
     if (glfwGetMouseButton(tPtr, 1) != GLFW_PRESS) return;
 
-    float velocity = 2.5f * deltaTime;
+    float velocity = 2.5f * tDeltaTime;
     if (glfwGetKey(tPtr, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS) {
         velocity *= speed_mult;
         speed_mult += 0.005f;

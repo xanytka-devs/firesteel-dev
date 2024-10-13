@@ -6,8 +6,8 @@
 #include <string>
 #include <fstream>
 #include <sstream>
-namespace LearningOpenGL {
-    class Shader {
+namespace Firesteel {
+    struct Shader {
     public:
         unsigned int ID;
 
@@ -84,7 +84,6 @@ namespace LearningOpenGL {
             glDeleteShader(fragment);
             if (hasGeomShader) glDeleteShader(geometry);
         }
-        ~Shader() { remove(); }
 
         /// Activate the shader.
         void enable() const {

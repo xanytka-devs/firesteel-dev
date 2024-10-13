@@ -18,7 +18,7 @@
 #include <map>
 #include <vector>
 
-namespace LearningOpenGL {
+namespace Firesteel {
 
     struct Transform {
         glm::vec3 Position = glm::vec3(0);
@@ -226,6 +226,6 @@ namespace LearningOpenGL {
 
 }
 
-glm::mat4 LearningOpenGL::Entity::modelMatrix = glm::mat4(1);
+glm::mat4 Firesteel::Entity::modelMatrix = glm::mat4(1);
 
 #endif // ! FS_MODEL_H

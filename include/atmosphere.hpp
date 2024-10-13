@@ -4,7 +4,7 @@
 #include "common.hpp"
 #include "shader.hpp"
 
-namespace LearningOpenGL {
+namespace Firesteel {
 	struct Atmosphere {
 		struct DirectionalLight {
 			glm::vec3 direction;

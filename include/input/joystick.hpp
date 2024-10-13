@@ -3,7 +3,7 @@
 
 #include <../include/common.hpp>
 
-namespace LearningOpenGL {
+namespace Firesteel {
 	enum JoystickControls {
 		//From: https://pastebin.com/6rusNyxR
 		//Analog input button values.   //      PS      |       XBOX

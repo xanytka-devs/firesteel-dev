@@ -2,12 +2,12 @@
 #define FS_WINDOW_H
 #include "common.hpp"
 
-namespace LearningOpenGL {
+namespace Firesteel {
 
 	class Window {
 	public:
-		Window(const int& t_width = 800, const int& t_height = 600, const bool& t_vsync = false) :
-			mPtr(NULL), mWidth(t_width), mHeight(t_height), mVSync(t_vsync), mClearColor(glm::vec3(0)), mClosed(false) {}
+		Window(const unsigned int& tWidth = 800, const unsigned int& tHeight = 600, const bool& tVsync = false) :
+			mPtr(NULL), mWidth(tWidth), mHeight(tHeight), mVSync(tVsync), mClearColor(glm::vec3(0)), mClosed(false) {}
 
 		bool initialize(const char* t_title = "Firesteel App", const bool& t_fullscreen = false,
             size_t tContextMajor = 3, size_t tContextMinor = 3) {
@@ -20,8 +20,8 @@ namespace LearningOpenGL {
             glfwWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, false);
 #endif // _DEBUG
             glfwWindowHint(GL_FRAMEBUFFER_SRGB, GL_TRUE);
-            glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, tContextMajor);
-            glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, tContextMinor);
+            glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, static_cast<int>(tContextMajor));
+            glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, static_cast<int>(tContextMinor));
             glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
             glfwSetErrorCallback(errorCallback);
 #ifdef __APPLE__
