@@ -18,6 +18,7 @@ namespace Firesteel {
         float nearPlane = 0.1f;
         float farPlane = 100.f;
         float fov = 45.0f;
+        float aspect = 0.5f;
         bool isPerspective = true;
 
         /// Constructor with vectors.
@@ -34,10 +35,10 @@ namespace Firesteel {
             return glm::lookAt(pos, pos + Forward, Up);
         }
         /// Returns viewport matrix.
-        glm::mat4 getProjection(float t_aspect, float t_clip_size) const {
-            if(isPerspective) return glm::perspective(glm::radians(fov), t_clip_size * t_aspect, nearPlane, farPlane);
-            else return glm::ortho(-t_clip_size, t_clip_size,
-                -t_clip_size * t_aspect, t_clip_size * t_aspect, nearPlane, farPlane);
+        glm::mat4 getProjection(float tClipSize) const {
+            if(isPerspective) return glm::perspective(glm::radians(fov), tClipSize * aspect, nearPlane, farPlane);
+            else return glm::ortho(-tClipSize, tClipSize,
+                -tClipSize * aspect, tClipSize * aspect, nearPlane, farPlane);
         }
 
         /// Calculates the front vector from the Camera's (updated) Euler Angles.

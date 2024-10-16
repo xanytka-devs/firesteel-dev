@@ -37,19 +37,19 @@ namespace Firesteel {
 		void loadExtencions() {
             bool atLeastOneUnsup = false;
             if (!glfwExtensionSupported("GL_ARB_debug_output")) {
-                LOG_ERRR("General debug output isn't supported.");
+                LOG_WARN("General debug output isn't supported.");
                 atLeastOneUnsup = true;
             }
             if (!glfwExtensionSupported("GL_AMD_debug_output")) {
-                LOG_ERRR("AMD debug output isn't supported.");
+                LOG_WARN("AMD debug output isn't supported.");
                 atLeastOneUnsup = true;
             }
             if (!glfwExtensionSupported("GL_ARB_direct_state_access")) {
-                LOG_ERRR("Official DSA isn't supported.");
+                LOG_WARN("Official DSA isn't supported.");
                 atLeastOneUnsup = true;
             }
             if (!glfwExtensionSupported("GL_EXT_direct_state_access")) {
-                LOG_ERRR("Unofficial DSA isn't supported.");
+                LOG_WARN("Unofficial DSA isn't supported.");
                 atLeastOneUnsup = true;
             }
             if (atLeastOneUnsup) printf("\n");

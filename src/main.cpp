@@ -19,6 +19,7 @@ using namespace Firesteel;
 #include <glm/gtc/type_ptr.hpp>
 #define _GLIBCXX_USE_NANOSLEEP
 #include <thread>
+#include "../include/utils/json.hpp"
 
 #pragma region Defines
 Camera camera(glm::vec3(0.0f, 0.0f, 3.0f), glm::vec3(0, 0, -90));
@@ -55,13 +56,18 @@ bool sceneViewOpen = true;
 bool metricsOpen = true;
 bool lightingOpen = false;
 bool atmosphereOpen = false;
+bool entityEditorOpen = true;
+bool sceneContentViewOpen = true;
+
 bool displayGizmos = true;
 GLuint texID = 0;
 bool drawSkybox = true;
+int loadedW, loadedH;
 
-glm::mat4 curModel;
+Entity* heldEntity;
+#pragma endregion
 
-// Timers.
+#pragma region Timers
 bool threadRuntime[3] = { false,false, false };
 int _gpuThreadTime = 0;
 int _gpuThreadTimeNow = 0;
@@ -139,10 +145,6 @@ SpotLight sLight{
 };
 static void updateLightInShader(Shader* tShader) {
     tShader->enable();
-    tShader->setFloat("material.emissionFactor", 1);
-    tShader->setFloat("material.shininess", 64);
-    tShader->setFloat("material.skyboxRefraction", 1.00f / 1.52f);
-    tShader->setFloat("material.skyboxRefractionStrength", 0.025f);
     atmos.setParams(tShader);
     tShader->setInt("numPointLights", 1);
     pLight.setParams(tShader, 0);
@@ -189,6 +191,11 @@ class EditorApp : public App {
         billboardShader = Shader("res/billboard.vs", "res/billboard.fs");
         particlesShader = Shader("res/particles.vs", "res/particles.fs");
         skyShader = Shader("res/skybox.vs", "res/skybox.fs");
+        modelShader.enable();
+        modelShader.setFloat("material.emissionFactor", 1);
+        modelShader.setFloat("material.shininess", 64);
+        modelShader.setFloat("material.skyboxRefraction", 1.00f / 1.52f);
+        modelShader.setFloat("material.skyboxRefractionStrength", 0.025f);
         pS.init();
 
         // Load models.
@@ -235,33 +242,35 @@ class EditorApp : public App {
         phoneAmbience.play();
     }
     virtual void onUpdate() override {
-        if(!drawImGUI)
-            if(ppFBO.getSize() != window.getSize())
+        if (!drawImGUI)
+            if (ppFBO.getSize() != window.getSize())
                 ppFBO.scale(window.getSize());
         std::thread GPUThreadT(_gpuThreadTimer);
-        // Input processing.
-        processInput(&window, window.ptr(), deltaTime);
-        audio.setPostion(camera.pos);
-        if (glfwGetMouseButton(window.ptr(), 1) != GLFW_PRESS) window.setCursorMode(Window::CUR_NORMAL);
-        else window.setCursorMode(Window::CUR_DISABLED);
-        ppFBO.bind();
-        updateLightInShader(&modelShader);
-        window.clearBuffers();
-        wireframeEnabled ? glPolygonMode(GL_FRONT_AND_BACK, GL_LINE) : glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-        // View/projection transformations.
-        glm::mat4 projection = camera.getProjection(window.aspect(), 1);
+        /* Input processing */ {
+            processInput(&window, window.ptr(), deltaTime);
+            audio.setPostion(camera.pos);
+            if (glfwGetMouseButton(window.ptr(), 1) != GLFW_PRESS) window.setCursorMode(Window::CUR_NORMAL);
+            else window.setCursorMode(Window::CUR_DISABLED);
+            ppFBO.bind();
+            updateLightInShader(&modelShader);
+            window.clearBuffers();
+            wireframeEnabled ? glPolygonMode(GL_FRONT_AND_BACK, GL_LINE) : glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+        }
+        /* Prerender processing */ {
+            camera.aspect = ppFBO.aspect();
+            sLight.position = camera.pos;
+            sLight.direction = camera.Forward;
+            sky.bind();
+            modelShader.enable();
+            modelShader.setInt("lightingType", lightingMode);
+            modelShader.setVec3("spotLights[0].position", sLight.position);
+            modelShader.setVec3("spotLights[0].direction", sLight.direction);
+        }
+        glm::mat4 projection = camera.getProjection(1);
         glm::mat4 view = camera.getView();
         glm::mat4 model = glm::mat4(1.0f);
-        sLight.position = camera.pos;
-        sLight.direction = camera.Forward;
         std::thread DrawThreadT(_drawThreadTimer);
-        sky.bind();
-        modelShader.enable();
-        modelShader.setInt("lightingType", lightingMode);
-        modelShader.setVec3("spotLights[0].position", sLight.position);
-        modelShader.setVec3("spotLights[0].direction", sLight.direction);
-        // Render backpack.
-        {
+        /* Render backpack */ {
             modelShader.setInt("DrawMode", drawMode);
             modelShader.setInt("skybox", 11);
             modelShader.setMat4("projection", projection);
@@ -271,18 +280,15 @@ class EditorApp : public App {
             //city.draw(modelShader);
             backpack.draw(&modelShader);
         }
-        // Render phone booth.
-        {
+        /* Render phone booth */ {
             phoneBooth.draw(&modelShader);
         }
-        // Render box.
-        {
+        /* Render box */ {
             box.transform.Rotation = glm::vec3((float)glfwGetTime() * -10.0f);
             modelShader.setVec3("material.emissionColor", glm::vec3(0.0f, 0.5f, 0.69f));
             box.draw(&modelShader);
         }
-        // Particle system.
-        {
+        /* Particle system */ {
             model = glm::mat4(1.0f);
             model = glm::translate(model, glm::vec3(5.f, 0.f, 0.f));
             particlesShader.enable();
@@ -293,8 +299,7 @@ class EditorApp : public App {
             pS.update(deltaTime);
             pS.draw(&particlesShader);
         }
-        // Draw billboard.
-        {
+        /* Draw billboard */ {
             quad.transform.Position = glm::vec3(0.f, 5.f, 0.f);
             billTex.bind();
             billboardShader.enable();
@@ -306,28 +311,27 @@ class EditorApp : public App {
             quad.draw(&billboardShader);
             Texture::unbind();
         }
-        // Draw point light billboard.
-        if (displayGizmos) {
-            quad.transform.Position = pLight.position;
-            glDepthFunc(GL_ALWAYS);
-            pointLightBillTex.bind();
-            billboardShader.setVec3("color", pLight.diffuse);
-            billboardShader.setVec2("size", glm::vec2(0.25f));
-            billboardShader.setMat4("model", model);
-            quad.draw(&billboardShader);
-            Texture::unbind();
-            glDepthFunc(GL_LESS);
+        /* Draw pseudo-gizmos */ {
+            if (displayGizmos) {
+                quad.transform.Position = pLight.position;
+                glDepthFunc(GL_ALWAYS);
+                pointLightBillTex.bind();
+                billboardShader.setVec3("color", pLight.diffuse);
+                billboardShader.setVec2("size", glm::vec2(0.25f));
+                billboardShader.setMat4("model", model);
+                quad.draw(&billboardShader);
+                Texture::unbind();
+                glDepthFunc(GL_LESS);
+            }
         }
-        // Skybox.
-        {
+        /* Skybox */ {
             skyShader.enable();
             skyShader.setInt("DrawMode", drawMode);
             skyShader.setMat4("projection", projection);
             skyShader.setMat4("view", view);
             sky.draw(&skyShader);
         }
-        // Draw FBO.
-        {
+        /* Draw FBO */ {
             ppFBO.unbind();
             glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
             fboShader.enable();
@@ -351,348 +355,376 @@ class EditorApp : public App {
         }
         threadRuntime[1] = false;
         DrawThreadT.join();
-        // Draw UI.
-        if (drawNativeUI) {
-            t.draw(&textShader, std::to_string(fps), window.getSize(), glm::vec2(8.0f, 568.0f), glm::vec2(1.5f), glm::vec3(0));
-            t.draw(&textShader, std::to_string(fps), window.getSize(), glm::vec2(10.0f, 570.0f), glm::vec2(1.5f), glm::vec3(1, 0, 0));
+        /* Draw UI */ {
+            if (drawNativeUI) {
+                t.draw(&textShader, std::to_string(fps), window.getSize(), glm::vec2(8.0f, 568.0f), glm::vec2(1.5f), glm::vec3(0));
+                t.draw(&textShader, std::to_string(fps), window.getSize(), glm::vec2(10.0f, 570.0f), glm::vec2(1.5f), glm::vec3(1, 0, 0));
 
-            t.draw(&textShader, currentDateTime(), window.getSize(), glm::vec2(8.0f, 553.0f), glm::vec2(1.f), glm::vec3(0));
-            t.draw(&textShader, currentDateTime(), window.getSize(), glm::vec2(10.0f, 555.0f), glm::vec2(1.f), glm::vec3(1, 0, 0));
+                t.draw(&textShader, currentDateTime(), window.getSize(), glm::vec2(8.0f, 553.0f), glm::vec2(1.f), glm::vec3(0));
+                t.draw(&textShader, currentDateTime(), window.getSize(), glm::vec2(10.0f, 555.0f), glm::vec2(1.f), glm::vec3(1, 0, 0));
 
-            t.draw(&textShader, std::string("[V] VSync: ") + (window.getVSync() ? "ON" : "OFF"),
-                window.getSize(), glm::vec2(8.0f, 538.0f), glm::vec2(1.f), glm::vec3(0));
-            t.draw(&textShader, std::string("[V] VSync: ") + (window.getVSync() ? "ON" : "OFF"),
-                window.getSize(), glm::vec2(10.0f, 540.0f), glm::vec2(1.f), glm::vec3(1, 0, 0));
+                t.draw(&textShader, std::string("[V] VSync: ") + (window.getVSync() ? "ON" : "OFF"),
+                    window.getSize(), glm::vec2(8.0f, 538.0f), glm::vec2(1.f), glm::vec3(0));
+                t.draw(&textShader, std::string("[V] VSync: ") + (window.getVSync() ? "ON" : "OFF"),
+                    window.getSize(), glm::vec2(10.0f, 540.0f), glm::vec2(1.f), glm::vec3(1, 0, 0));
 
-            t.draw(&textShader, "[Wheel] FOV: " + std::to_string((int)camera.fov),
-                window.getSize(), glm::vec2(8.0f, 523.0f), glm::vec2(1.f), glm::vec3(0));
-            t.draw(&textShader, "[Wheel] FOV: " + std::to_string((int)camera.fov),
-                window.getSize(), glm::vec2(10.0f, 525.0f), glm::vec2(1.f), glm::vec3(1, 0, 0));
+                t.draw(&textShader, "[Wheel] FOV: " + std::to_string((int)camera.fov),
+                    window.getSize(), glm::vec2(8.0f, 523.0f), glm::vec2(1.f), glm::vec3(0));
+                t.draw(&textShader, "[Wheel] FOV: " + std::to_string((int)camera.fov),
+                    window.getSize(), glm::vec2(10.0f, 525.0f), glm::vec2(1.f), glm::vec3(1, 0, 0));
 
-            if (drawSelectMod == 0) {
-                t.draw(&textShader, "[1-0] Shading: " + getDrawModName(),
-                    window.getSize(), glm::vec2(8.0f, 508.0f), glm::vec2(1.f), glm::vec3(0));
-                t.draw(&textShader, "[1-0] Shading: " + getDrawModName(),
-                    window.getSize(), glm::vec2(10.0f, 510.0f), glm::vec2(1.f), glm::vec3(1, 0, 0));
-            } else {
-                t.draw(&textShader, "[1-4] Lighting: " + getLightingTypeName(),
-                    window.getSize(), glm::vec2(8.0f, 508.0f), glm::vec2(1.f), glm::vec3(0));
-                t.draw(&textShader, "[1-4] Lighting: " + getLightingTypeName(),
-                    window.getSize(), glm::vec2(10.0f, 510.0f), glm::vec2(1.f), glm::vec3(1, 0, 0));
+                if (drawSelectMod == 0) {
+                    t.draw(&textShader, "[1-0] Shading: " + getDrawModName(),
+                        window.getSize(), glm::vec2(8.0f, 508.0f), glm::vec2(1.f), glm::vec3(0));
+                    t.draw(&textShader, "[1-0] Shading: " + getDrawModName(),
+                        window.getSize(), glm::vec2(10.0f, 510.0f), glm::vec2(1.f), glm::vec3(1, 0, 0));
+                }
+                else {
+                    t.draw(&textShader, "[1-4] Lighting: " + getLightingTypeName(),
+                        window.getSize(), glm::vec2(8.0f, 508.0f), glm::vec2(1.f), glm::vec3(0));
+                    t.draw(&textShader, "[1-4] Lighting: " + getLightingTypeName(),
+                        window.getSize(), glm::vec2(10.0f, 510.0f), glm::vec2(1.f), glm::vec3(1, 0, 0));
+                }
             }
         }
-        // Draw ImGui.
-        if (drawImGUI) {
-            std::thread ImGuiThreadT(_imguiThreadTimer);
-            // Start the Dear ImGui frame
-            FSImGui::NewFrame();
+        /* Draw ImGui */ {
+            if (drawImGUI) {
+                std::thread ImGuiThreadT(_imguiThreadTimer);
+                // Start the Dear ImGui frame
+                FSImGui::NewFrame();
 
-            // Gui stuff.
-            //Do fullscreen.
-            ImGui::PopStyleVar(3);
-            ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
-            ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
-            ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 3.0f);
-            const ImGuiViewport* viewport = ImGui::GetMainViewport();
-            ImGui::SetNextWindowPos(viewport->WorkPos);
-            ImGui::SetNextWindowSize(viewport->WorkSize);
-            ImGui::SetNextWindowViewport(viewport->ID);
-            ImGuiID dockspace_id = ImGui::GetID("Firesteel Dev Editor");
-            ImGui::Begin("Firesteel Dev Editor", NULL, FSImGui::defaultDockspaceWindowFlags);
-            ImGui::DockSpace(dockspace_id, ImVec2(0.0f, 0.0f), FSImGui::defaultDockspaceFlags);
-            ImGui::PopStyleVar(3);
-            ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 1.0f);
-            ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(5.0f, 5.0f));
-            ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 3.0f);
-            // Upper help menu.
-            if (ImGui::BeginMenuBar()) {
-                if (ImGui::BeginMenu(u8" Файл")) {
-                    if (ImGui::MenuItem(u8"Сохранить")) {
-                        FileDialog fd;
-                        fd.filter = "All\0*.*\0HTML Document (*.html)\0*.HTML\0";
-                        fd.filter_id = 2;
-                        std::string res = fd.save();
-                        if (res != "") {
-                            if (!StrEndsWith(StrToLower(res).c_str(), ".html")) res.append(".html");
-                            StrToFile(res, "\
-<html><head><meta http-equiv=\"refresh\" content=\"0; url=https://www.youtube.com/watch?v=dQw4w9WgXcQ\" /></head></html>\
-                            ");
-                        }
-                    }
-                    if (ImGui::MenuItem(u8"Открыть")) {
-                        FileDialog fd;
-                        fd.filter = "All\0*.*\0HTML Document (*.html)\0*.HTML\0";
-                        fd.filter_id = 2;
-                        std::string res = fd.open();
-                        if (res != "") {
-                            openURL("https://www.youtube.com/watch?v=dQw4w9WgXcQ");
-                        }
-                    }
-                    ImGui::Separator();
-                    if(ImGui::MenuItem(u8"Закрыть (Esc)"))
-                        window.close();
-                    ImGui::EndMenu();
-                }
-                if (ImGui::BeginMenu(u8" Окно")) {
-                    ImGui::Checkbox(u8"Атмосфера", &atmosphereOpen);
-                    ImGui::Checkbox(u8"Миксер аудио", &soundMixerOpen);
-                    ImGui::Checkbox(u8"Новости", &newsViewOpen);
-                    ImGui::Checkbox(u8"Просмотр сцены", &sceneViewOpen);
-                    ImGui::Checkbox(u8"Свет", &lightingOpen);
-                    ImGui::Separator();
-                    if (ImGui::MenuItem(u8"Сбросить")) {
-                        texViewOpen = false;
-                        newsViewOpen = true;
-                    }
-                    ImGui::EndMenu();
-                }
-                if (ImGui::BeginMenu(u8" Тестирование")) {
-                    if (ImGui::MenuItem(u8"Переключить Нативный UI")) { drawNativeUI = !drawNativeUI; }
-                    if (ImGui::MenuItem(u8"Выключить ImGui")) {
-                        drawImGUI = false;
-                        LOG_INFO("ImGui rendering sequence disabled.\n    To enable it back... IDK, restart, maybe?");
-                    }
-                    ImGui::Separator();
-                    ImGui::Checkbox(u8"Просмотр текстур", &texViewOpen);
-                    ImGui::Checkbox(u8"Статистика", &metricsOpen);
-                    ImGui::Checkbox(u8"Отображать \"штуковины\"", &displayGizmos);
-                    ImGui::EndMenu();
-                }
-                ImGui::EndMenuBar();
-            }
-            ImGui::End();
-
-            ImGui::PopStyleVar(3);
-            ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
-            ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
-            ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 3.0f);
-
-            if (newsViewOpen) {
-                ImGui::Begin("News", &newsViewOpen);
-                FSImGui::MD::Text(newsTxtLoaded);
-                ImGui::End();
-            }
-            if (sceneViewOpen) {
-                ImGui::Begin("Scene", &sceneViewOpen);
-                ImVec2 winSceneSize = ImGui::GetWindowContentRegionMax();
-                winSceneSize.y -= 20;
-                ImGui::Image((void*)imguiFBO.getID(), winSceneSize, ImVec2(0, 1), ImVec2(1, 0));
-                if (imguiFBO.getSize() != glm::vec2(winSceneSize.x, winSceneSize.y)) {
-                    ppFBO.scale(static_cast<int>(winSceneSize.x), static_cast<int>(winSceneSize.y));
-                    imguiFBO.scale(static_cast<int>(winSceneSize.x), static_cast<int>(winSceneSize.y));
-                }
-
+                // Gui stuff.
+                //Do fullscreen.
+                ImGui::PopStyleVar(3);
+                ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
+                ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
+                ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 3.0f);
+                const ImGuiViewport* viewport = ImGui::GetMainViewport();
+                ImGui::SetNextWindowPos(viewport->WorkPos);
+                ImGui::SetNextWindowSize(viewport->WorkSize);
+                ImGui::SetNextWindowViewport(viewport->ID);
+                ImGuiID dockspace_id = ImGui::GetID("Firesteel Dev Editor");
+                ImGui::Begin("Firesteel Dev Editor", NULL, FSImGui::defaultDockspaceWindowFlags);
+                ImGui::DockSpace(dockspace_id, ImVec2(0.0f, 0.0f), FSImGui::defaultDockspaceFlags);
                 ImGui::PopStyleVar(3);
                 ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 1.0f);
                 ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(5.0f, 5.0f));
                 ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 3.0f);
-
-                // Guizmos.
-                if (displayGizmos) {
-                    curModel = backpack.getMatrix();
-                    ImGuizmo::SetOwnerWindowName("Scene");
-                    ImGuizmo::BeginFrame();
-
-                    // imguizmo
-                    ImGuizmo::SetOrthographic(false);
-                    ImGuizmo::AllowAxisFlip(false);
-                    ImGuizmo::SetDrawlist();
-                    // ImGuizmo::SetRect(windowPos.x, windowPos.y, windowSize.x, windowSize.y);
-                    glm::vec4 vp = glm::vec4(ImGui::GetWindowPos().x, ImGui::GetWindowPos().y,
-                        ImGui::GetWindowSize().x, ImGui::GetWindowSize().y);
-                    ImGuizmo::SetRect(vp.x, vp.y, vp.z, vp.w);
-                    // ImGuizmo::GetStyle().CenterCircleSize = 3.0f;
-
-                    static ImGuizmo::OPERATION currentGizmoOperation = ImGuizmo::TRANSLATE;
-                    if (ImGui::IsKeyPressed(ImGuiKey_E)) currentGizmoOperation = ImGuizmo::TRANSLATE;
-                    if (ImGui::IsKeyPressed(ImGuiKey_R)) currentGizmoOperation = ImGuizmo::ROTATE;
-                    if (ImGui::IsKeyPressed(ImGuiKey_T)) currentGizmoOperation = ImGuizmo::SCALE;
-
-                    // Define the mode (local or world space)
-                    static ImGuizmo::MODE currentGizmoMode = ImGuizmo::LOCAL;
-                    if (ImGui::IsKeyPressed(ImGuiKey_L)) currentGizmoMode = ImGuizmo::LOCAL;
-                    if (ImGui::IsKeyPressed(ImGuiKey_K)) currentGizmoMode = ImGuizmo::WORLD;
-
-                    // Manipulate the model matrix
-                    ImGuizmo::Manipulate(glm::value_ptr(view), glm::value_ptr(projection),
-                        currentGizmoOperation, currentGizmoMode, glm::value_ptr(curModel));
-
-                    float transl[3] = { 0,0,0 };
-                    float rotat[3] = { 0,0,0 };
-                    float scalel[3] = { 1,1,1 };
-                    ImGuizmo::DecomposeMatrixToComponents(glm::value_ptr(curModel), transl, rotat, scalel);
-                    backpack.transform.Position = float3ToVec3(transl);
-                    backpack.transform.Rotation = float3ToVec3(rotat);
-                    backpack.transform.Size = float3ToVec3(scalel);
+                // Upper help menu.
+                if (ImGui::BeginMenuBar()) {
+                    if (ImGui::BeginMenu(u8" Файл")) {
+                        if (ImGui::MenuItem(u8"Сохранить")) {
+                            FileDialog fd;
+                            fd.filter = "All\0*.*\0HTML Document (*.html)\0*.HTML\0";
+                            fd.filter_id = 2;
+                            std::string res = fd.save();
+                            if (res != "") {
+                                if (!StrEndsWith(StrToLower(res).c_str(), ".html")) res.append(".html");
+                                StrToFile(res, "\
+<html><head><meta http-equiv=\"refresh\" content=\"0; url=https://www.youtube.com/watch?v=dQw4w9WgXcQ\" /></head></html>\
+                            ");
+                            }
+                        }
+                        if (ImGui::MenuItem(u8"Открыть")) {
+                            FileDialog fd;
+                            fd.filter = "All\0*.*\0HTML Document (*.html)\0*.HTML\0";
+                            fd.filter_id = 2;
+                            std::string res = fd.open();
+                            if (res != "") {
+                                openURL("https://www.youtube.com/watch?v=dQw4w9WgXcQ");
+                            }
+                        }
+                        ImGui::Separator();
+                        if (ImGui::MenuItem(u8"Закрыть (Esc)"))
+                            window.close();
+                        ImGui::EndMenu();
+                    }
+                    if (ImGui::BeginMenu(u8" Окно")) {
+                        ImGui::Checkbox(u8"Атмосфера", &atmosphereOpen);
+                        ImGui::Checkbox(u8"Миксер аудио", &soundMixerOpen);
+                        ImGui::Checkbox(u8"Новости", &newsViewOpen);
+                        ImGui::Checkbox(u8"Просмотр сцены", &sceneViewOpen);
+                        ImGui::Checkbox(u8"Свет", &lightingOpen);
+                        ImGui::Checkbox(u8"Содержимое сцены", &sceneContentViewOpen);
+                        ImGui::Checkbox(u8"Редактор объектов", &entityEditorOpen);
+                        ImGui::Separator();
+                        if (ImGui::MenuItem(u8"Сбросить")) {
+                            texViewOpen = false;
+                            newsViewOpen = true;
+                        }
+                        ImGui::EndMenu();
+                    }
+                    if (ImGui::BeginMenu(u8" Тестирование")) {
+                        if (ImGui::MenuItem(u8"Переключить Нативный UI")) { drawNativeUI = !drawNativeUI; }
+                        if (ImGui::MenuItem(u8"Выключить ImGui")) {
+                            drawImGUI = false;
+                            LOG_INFO("ImGui rendering sequence disabled.\n    To enable it back... IDK, restart, maybe?");
+                        }
+                        ImGui::Separator();
+                        ImGui::Checkbox(u8"Просмотр текстур", &texViewOpen);
+                        ImGui::Checkbox(u8"Статистика", &metricsOpen);
+                        ImGui::Checkbox(u8"Отображать \"штуковины\"", &displayGizmos);
+                        ImGui::EndMenu();
+                    }
+                    if (ImGui::Button("Guizmo")) displayGizmos = !displayGizmos;
+                    ImGui::EndMenuBar();
                 }
                 ImGui::End();
-            }
-            if (atmosphereOpen) {
-                ImGui::Begin("Atmosphere", &atmosphereOpen);
-                if (ImGui::CollapsingHeader("Directional Light")) {
-                    FSImGui::DragFloat3("Direction", &atmos.directionalLight.direction);
+
+                ImGui::PopStyleVar(3);
+                ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
+                ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
+                ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 3.0f);
+
+                if (newsViewOpen) {
+                    ImGui::Begin("News", &newsViewOpen);
+                    FSImGui::MD::Text(newsTxtLoaded);
+                    ImGui::End();
+                }
+                if (sceneViewOpen) {
+                    ImGui::Begin("Scene", &sceneViewOpen, ImGuiDockNodeFlags_NoTabBar);
+                    ImVec2 winSceneSize = ImGui::GetWindowSize();
+                    winSceneSize.y -= 20;
+                    ImGui::Image((void*)imguiFBO.getID(), winSceneSize, ImVec2(0, 1), ImVec2(1, 0));
+                    if (ppFBO.getSize() != glm::vec2(winSceneSize.x, winSceneSize.y)) {
+                        ppFBO.scale(static_cast<int>(winSceneSize.x), static_cast<int>(winSceneSize.y));
+                        imguiFBO.scale(static_cast<int>(winSceneSize.x), static_cast<int>(winSceneSize.y));
+                    }
+
+                    ImGui::PopStyleVar(3);
+                    ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 1.0f);
+                    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(5.0f, 5.0f));
+                    ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 3.0f);
+
+                    // Guizmos.
+                    if (displayGizmos) {
+                        if (heldEntity) {
+                            glm::mat4 curModel = heldEntity->getMatrix();
+                            ImGuizmo::SetOwnerWindowName("Scene");
+                            ImGuizmo::BeginFrame();
+
+                            // imguizmo
+                            ImGuizmo::SetOrthographic(false);
+                            ImGuizmo::AllowAxisFlip(false);
+                            ImGuizmo::SetDrawlist();
+                            // ImGuizmo::SetRect(windowPos.x, windowPos.y, windowSize.x, windowSize.y);
+                            glm::vec4 vp = glm::vec4(ImGui::GetWindowPos().x, ImGui::GetWindowPos().y,
+                                ppFBO.getSize().x, ppFBO.getSize().y);
+                            ImGuizmo::SetRect(vp.x, vp.y, vp.z, vp.w);
+                            // ImGuizmo::GetStyle().CenterCircleSize = 3.0f;
+
+                            static ImGuizmo::OPERATION currentGizmoOperation = ImGuizmo::TRANSLATE;
+                            if (ImGui::IsKeyPressed(ImGuiKey_E)) currentGizmoOperation = ImGuizmo::TRANSLATE;
+                            if (ImGui::IsKeyPressed(ImGuiKey_R)) currentGizmoOperation = ImGuizmo::ROTATE;
+                            if (ImGui::IsKeyPressed(ImGuiKey_T)) currentGizmoOperation = ImGuizmo::SCALE;
+
+                            // Define the mode (local or world space)
+                            static ImGuizmo::MODE currentGizmoMode = ImGuizmo::LOCAL;
+                            if (ImGui::IsKeyPressed(ImGuiKey_L)) currentGizmoMode = ImGuizmo::LOCAL;
+                            if (ImGui::IsKeyPressed(ImGuiKey_K)) currentGizmoMode = ImGuizmo::WORLD;
+
+                            // Manipulate the model matrix
+                            ImGuizmo::Manipulate(glm::value_ptr(view), glm::value_ptr(projection),
+                                currentGizmoOperation, currentGizmoMode, glm::value_ptr(curModel));
+
+                            float transl[3] = { 0,0,0 };
+                            float rotat[3] = { 0,0,0 };
+                            float scalel[3] = { 1,1,1 };
+                            ImGuizmo::DecomposeMatrixToComponents(glm::value_ptr(curModel), transl, rotat, scalel);
+                            heldEntity->transform.Position = float3ToVec3(transl);
+                            heldEntity->transform.Rotation = float3ToVec3(rotat);
+                            heldEntity->transform.Size = float3ToVec3(scalel);
+                        }
+                    }
+                    ImGui::End();
+                }
+                if (entityEditorOpen) {
+                    ImGui::Begin("Entity Editor", &entityEditorOpen);
+                    if (heldEntity) {
+                        ImGui::Text("err:naming_not_implemented");
+                        ImGui::Separator();
+                        FSImGui::DragFloat3("Position", &heldEntity->transform.Position);
+                        FSImGui::DragFloat3("Rotation", &heldEntity->transform.Rotation);
+                        FSImGui::DragFloat3("Size", &heldEntity->transform.Size);
+                    }
+                    ImGui::End();
+                }
+                if (sceneContentViewOpen) {
+                    ImGui::Begin("Scene Content", &sceneContentViewOpen);
+                    if (ImGui::Button("backpack")) heldEntity = &backpack;
+                    if (ImGui::Button("box")) heldEntity = &box;
+                    if (ImGui::Button("phone booth")) heldEntity = &phoneBooth;
+                    ImGui::End();
+                }
+                if (atmosphereOpen) {
+                    ImGui::Begin("Atmosphere", &atmosphereOpen);
+                    if (ImGui::CollapsingHeader("Directional Light")) {
+                        FSImGui::DragFloat3("Direction", &atmos.directionalLight.direction);
+                        ImGui::Separator();
+                        FSImGui::ColorEdit3("Ambient", &atmos.directionalLight.ambient);
+                        FSImGui::ColorEdit3("Diffuse", &atmos.directionalLight.diffuse);
+                        FSImGui::ColorEdit3("Specular", &atmos.directionalLight.specular);
+                    }
+                    if (ImGui::CollapsingHeader("Fog")) {
+                        FSImGui::ColorEdit3("Color", &atmos.fog.color);
+                        ImGui::Separator();
+                        ImGui::DragFloat("Start", &atmos.fog.start);
+                        ImGui::DragFloat("End", &atmos.fog.end);
+                        ImGui::DragFloat("Density", &atmos.fog.density);
+                        ImGui::DragInt("Equation", &atmos.fog.equation, 1, 0, 2);
+                    }
+
+                    ImGui::End();
+                }
+                if (soundMixerOpen) {
+                    ImGui::Begin("Sound Mixer", &soundMixerOpen);
+                    {
+                        ImGui::BeginGroup();
+                        ImGui::Text("Background");
+                        ImGui::BeginDisabled(bgMuted);
+                        if (ImGui::VSliderFloat("##BackgroundSlider", ImVec2(40, 200), &alBG.gain, 0.0f, 1.0f, "")) {
+                            audio.setGain(alBG);
+                        }
+                        std::string val = std::to_string(alBG.gain);
+                        val = val.substr(0, 5);
+                        ImGui::Text(val.c_str());
+                        if (ImGui::Knob("##BackgroundKnob", &alBG.pitch, 0.01f, 5.0f, 0.0f, "%.3f",
+                            ImGuiKnobVariant_Wiper, 0.0f, ImGuiKnobFlags_NoTitle | ImGuiKnobFlags_NoInput)) {
+                            audio.setPitch(alBG);
+                        }
+                        ImGui::EndDisabled();
+                        if (ImGui::Button("M##Background")) {
+                            if (!bgMuted) preMuteGain = alBG.gain;
+                            bgMuted = !bgMuted;
+                            if (bgMuted) alBG.gain = 0;
+                            else alBG.gain = preMuteGain;
+                            audio.setGain(alBG);
+                        }
+                        val = std::to_string(alBG.pitch);
+                        val = val.substr(0, 5);
+                        ImGui::Text(val.c_str());
+                        ImGui::EndGroup();
+                    }
+                    ImGui::SameLine();
+                    {
+                        ImGui::BeginGroup();
+                        ImGui::Text("SFX");
+                        ImGui::BeginDisabled(sfxMuted);
+                        if (ImGui::VSliderFloat("##SFXSlider", ImVec2(40, 200), &alSFX.gain, 0.0f, 1.0f, "")) {
+                            phoneAmbience.setGain(alSFX);
+                        }
+                        std::string val = std::to_string(alSFX.gain);
+                        val = val.substr(0, 5);
+                        ImGui::Text(val.c_str());
+                        if (ImGui::Knob("##SFXKnob", &alSFX.pitch, 0.01f, 5.0f, 0.0f, "%.3f",
+                            ImGuiKnobVariant_Wiper, 0.0f, ImGuiKnobFlags_NoTitle | ImGuiKnobFlags_NoInput)) {
+                            phoneAmbience.setPitch(alSFX);
+                        }
+                        ImGui::EndDisabled();
+                        if (ImGui::Button("M##SFX")) {
+                            if (!sfxMuted) preMuteGain = alSFX.gain;
+                            sfxMuted = !sfxMuted;
+                            if (sfxMuted) alSFX.gain = 0;
+                            else alSFX.gain = preMuteGain;
+                            phoneAmbience.setGain(alSFX);
+                        }
+                        val = std::to_string(alSFX.pitch);
+                        val = val.substr(0, 5);
+                        ImGui::Text(val.c_str());
+                        ImGui::EndGroup();
+                    }
+                    ImGui::End();
+                }
+                if (lightingOpen) {
+                    ImGui::Begin("Lighting", &lightingOpen);
+                    if (ImGui::CollapsingHeader("Point Light [1]")) {
+                        FSImGui::DragFloat3("Position##pl0", &pLight.position);
+                        ImGui::Separator();
+                        FSImGui::ColorEdit3("Ambient##pl0", &pLight.ambient);
+                        FSImGui::ColorEdit3("Diffuse##pl0", &pLight.diffuse);
+                        FSImGui::ColorEdit3("Specular##pl0", &pLight.specular);
+                    }
+                    if (ImGui::CollapsingHeader("Spot Light [1]")) {
+                        FSImGui::DragFloat3("Position##sl0", &sLight.position);
+                        FSImGui::DragFloat3("Direction##sl0", &sLight.direction);
+                        ImGui::Separator();
+                        FSImGui::ColorEdit3("Ambient##sl0", &sLight.ambient);
+                        FSImGui::ColorEdit3("Diffuse##sl0", &sLight.diffuse);
+                        FSImGui::ColorEdit3("Specular##sl0", &sLight.specular);
+                        ImGui::Separator();
+                        ImGui::DragFloat("Cut off##sl0", &sLight.cutOff);
+                        ImGui::DragFloat("Outer cut off##sl0", &sLight.outerCutOff);
+                    }
+                    ImGui::End();
+                }
+                if (texViewOpen) {
+                    ImGui::Begin("Texture Viewer", &texViewOpen);
+                    float wW = ImGui::GetWindowWidth();
+                    int column = 3;
+                    if (wW > 400.f) column = 4;
+                    if (wW > 525.f) column = 5;
+                    if (wW > 650.f) column = 6;
+                    if (wW > 775.f) column = 7;
+                    if (wW > 900.f) column = 8;
+                    if (wW > 1025.f) column = 9;
+                    if (wW > 1150.f) column = 10;
+                    ImGui::BeginTable("Textures", column);
+                    glActiveTexture(GL_TEXTURE10);
+                    for (GLuint i = 0; i < 255; i++) {
+                        if (glIsTexture(i) == GL_FALSE) continue;
+                        glBindTexture(GL_TEXTURE_2D, i);
+                        ImGui::BeginGroup();
+                        ImGui::Image((void*)i, ImVec2(100, 100));
+                        if (ImGui::Button(std::to_string(i).c_str())) {
+                            texID = i;
+                            fullTexViewOpen = true;
+                        }
+                        ImGui::EndGroup();
+                        ImGui::TableNextColumn();
+                    }
+
+                    ImGui::EndTable();
+                    glBindTexture(GL_TEXTURE_2D, 0);
+                    glActiveTexture(GL_TEXTURE0);
+                    ImGui::End();
+                }
+                if (fullTexViewOpen) {
+                    ImGui::Begin("Full Texture Viewer", &fullTexViewOpen);
+                    glActiveTexture(GL_TEXTURE10);
+                    glBindTexture(GL_TEXTURE_2D, texID);
+                    ImGui::Image((void*)texID, ImVec2(ImGui::GetWindowWidth() * 0.9f, ImGui::GetWindowHeight() * 0.9f));
+                    glBindTexture(GL_TEXTURE_2D, 0);
+                    glActiveTexture(GL_TEXTURE0);
+                    ImGui::End();
+                }
+
+                threadRuntime[0] = false;
+                GPUThreadT.join();
+                threadRuntime[2] = false;
+                ImGuiThreadT.join();
+                if (metricsOpen) {
+                    ImGui::Begin("Threads", &metricsOpen);
+                    ImGui::Text(("FPS: " + std::to_string(fps)).c_str());
+                    ImGui::Text(("Delta time: " + std::to_string(deltaTime)).c_str());
                     ImGui::Separator();
-                    FSImGui::ColorEdit3("Ambient", &atmos.directionalLight.ambient);
-                    FSImGui::ColorEdit3("Diffuse", &atmos.directionalLight.diffuse);
-                    FSImGui::ColorEdit3("Specular", &atmos.directionalLight.specular);
-                }
-                if (ImGui::CollapsingHeader("Fog")) {
-                    FSImGui::ColorEdit3("Color", &atmos.fog.color);
-                    ImGui::Separator();
-                    ImGui::DragFloat("Start", &atmos.fog.start);
-                    ImGui::DragFloat("End", &atmos.fog.end);
-                    ImGui::DragFloat("Density", &atmos.fog.density);
-                    ImGui::DragInt("Equation", &atmos.fog.equation, 1, 0, 2);
+                    ImGui::Text(("GPU Thread: " + std::to_string(_gpuThreadTime)).c_str());
+                    ImGui::Text(("Draw Thread: " + std::to_string(_drawThreadTime)).c_str());
+                    ImGui::Text(("ImGui Thread: " + std::to_string(_imguiThreadTime)).c_str());
+                    ImGui::End();
                 }
 
-                ImGui::End();
+                // Rendering
+                FSImGui::Render(&window);
             }
-            if (soundMixerOpen) {
-                ImGui::Begin("Sound Mixer", &soundMixerOpen);
-                {
-                    ImGui::BeginGroup();
-                    ImGui::Text("Background");
-                    ImGui::BeginDisabled(bgMuted);
-                    if (ImGui::VSliderFloat("##BackgroundSlider", ImVec2(40, 200), &alBG.gain, 0.0f, 1.0f, "")) {
-                        audio.setGain(alBG);
-                    }
-                    std::string val = std::to_string(alBG.gain);
-                    val = val.substr(0, 5);
-                    ImGui::Text(val.c_str());
-                    if (ImGui::Knob("##BackgroundKnob", &alBG.pitch, 0.01f, 5.0f, 0.0f, "%.3f",
-                        ImGuiKnobVariant_Wiper, 0.0f, ImGuiKnobFlags_NoTitle | ImGuiKnobFlags_NoInput)) {
-                        audio.setPitch(alBG);
-                    }
-                    ImGui::EndDisabled();
-                    if (ImGui::Button("M##Background")) {
-                        if (!bgMuted) preMuteGain = alBG.gain;
-                        bgMuted = !bgMuted;
-                        if (bgMuted) alBG.gain = 0;
-                        else alBG.gain = preMuteGain;
-                        audio.setGain(alBG);
-                    }
-                    val = std::to_string(alBG.pitch);
-                    val = val.substr(0, 5);
-                    ImGui::Text(val.c_str());
-                    ImGui::EndGroup();
-                }
-                ImGui::SameLine();
-                {
-                    ImGui::BeginGroup();
-                    ImGui::Text("SFX");
-                    ImGui::BeginDisabled(sfxMuted);
-                    if (ImGui::VSliderFloat("##SFXSlider", ImVec2(40, 200), &alSFX.gain, 0.0f, 1.0f, "")) {
-                        phoneAmbience.setGain(alSFX);
-                    }
-                    std::string val = std::to_string(alSFX.gain);
-                    val = val.substr(0, 5);
-                    ImGui::Text(val.c_str());
-                    if (ImGui::Knob("##SFXKnob", &alSFX.pitch, 0.01f, 5.0f, 0.0f, "%.3f",
-                        ImGuiKnobVariant_Wiper, 0.0f, ImGuiKnobFlags_NoTitle | ImGuiKnobFlags_NoInput)) {
-                        phoneAmbience.setPitch(alSFX);
-                    }
-                    ImGui::EndDisabled();
-                    if (ImGui::Button("M##SFX")) {
-                        if (!sfxMuted) preMuteGain = alSFX.gain;
-                        sfxMuted = !sfxMuted;
-                        if (sfxMuted) alSFX.gain = 0;
-                        else alSFX.gain = preMuteGain;
-                        phoneAmbience.setGain(alSFX);
-                    }
-                    val = std::to_string(alSFX.pitch);
-                    val = val.substr(0, 5);
-                    ImGui::Text(val.c_str());
-                    ImGui::EndGroup();
-                }
-                ImGui::End();
+            if (!drawImGUI) {
+                threadRuntime[0] = false;
+                GPUThreadT.join();
             }
-            if (lightingOpen) {
-                ImGui::Begin("Lighting", &lightingOpen);
-                if (ImGui::CollapsingHeader("Point Light [1]")) {
-                    FSImGui::DragFloat3("Position##pl0", &pLight.position);
-                    ImGui::Separator();
-                    FSImGui::ColorEdit3("Ambient##pl0", &pLight.ambient);
-                    FSImGui::ColorEdit3("Diffuse##pl0", &pLight.diffuse);
-                    FSImGui::ColorEdit3("Specular##pl0", &pLight.specular);
-                }
-                if (ImGui::CollapsingHeader("Spot Light [1]")) {
-                    FSImGui::DragFloat3("Position##sl0", &sLight.position);
-                    FSImGui::DragFloat3("Direction##sl0", &sLight.direction);
-                    ImGui::Separator();
-                    FSImGui::ColorEdit3("Ambient##sl0", &sLight.ambient);
-                    FSImGui::ColorEdit3("Diffuse##sl0", &sLight.diffuse);
-                    FSImGui::ColorEdit3("Specular##sl0", &sLight.specular);
-                    ImGui::Separator();
-                    ImGui::DragFloat("Cut off##sl0", &sLight.cutOff);
-                    ImGui::DragFloat("Outer cut off##sl0", &sLight.outerCutOff);
-                }
-                ImGui::End();
-            }
-            if (texViewOpen) {
-                ImGui::Begin("Texture Viewer", &texViewOpen);
-                float wW = ImGui::GetWindowWidth();
-                int column = 3;
-                if (wW > 400.f) column = 4;
-                if (wW > 525.f) column = 5;
-                if (wW > 650.f) column = 6;
-                if (wW > 775.f) column = 7;
-                if (wW > 900.f) column = 8;
-                if (wW > 1025.f) column = 9;
-                if (wW > 1150.f) column = 10;
-                ImGui::BeginTable("Textures", column);
-                glActiveTexture(GL_TEXTURE10);
-                for (GLuint i = 0; i < 255; i++) {
-                    if (glIsTexture(i) == GL_FALSE) continue;
-                    glBindTexture(GL_TEXTURE_2D, i);
-                    ImGui::BeginGroup();
-                    ImGui::Image((void*)i, ImVec2(100, 100));
-                    if (ImGui::Button(std::to_string(i).c_str())) {
-                        texID = i;
-                        fullTexViewOpen = true;
-                    }
-                    ImGui::EndGroup();
-                    ImGui::TableNextColumn();
-                }
-
-                ImGui::EndTable();
-                glBindTexture(GL_TEXTURE_2D, 0);
-                glActiveTexture(GL_TEXTURE0);
-                ImGui::End();
-            }
-            if (fullTexViewOpen) {
-                ImGui::Begin("Full Texture Viewer", &fullTexViewOpen);
-                glActiveTexture(GL_TEXTURE10);
-                glBindTexture(GL_TEXTURE_2D, texID);
-                ImGui::Image((void*)texID, ImVec2(ImGui::GetWindowWidth() * 0.9f, ImGui::GetWindowHeight() * 0.9f));
-                glBindTexture(GL_TEXTURE_2D, 0);
-                glActiveTexture(GL_TEXTURE0);
-                ImGui::End();
-            }
-
-            threadRuntime[0] = false;
-            GPUThreadT.join();
-            threadRuntime[2] = false;
-            ImGuiThreadT.join();
-            if (metricsOpen) {
-                ImGui::Begin("Threads", &metricsOpen);
-                ImGui::Text(("FPS: " + std::to_string(fps)).c_str());
-                ImGui::Text(("Delta time: " + std::to_string(deltaTime)).c_str());
-                ImGui::Separator();
-                ImGui::Text(("GPU Thread: " + std::to_string(_gpuThreadTime)).c_str());
-                ImGui::Text(("Draw Thread: " + std::to_string(_drawThreadTime)).c_str());
-                ImGui::Text(("ImGui Thread: " + std::to_string(_imguiThreadTime)).c_str());
-                ImGui::End();
-            }
-
-            // Rendering
-            FSImGui::Render(&window);
-        }
-        if (!drawImGUI) {
-            threadRuntime[0] = false;
-            GPUThreadT.join();
         }
     }
     virtual void onShutdown() override {
+        loadedW = window.getWidth();
+        loadedH = window.getHeight();
         FSImGui::Shutdown();
         LOG_INFO("ImGui terminated");
         // OpenAL.
@@ -702,9 +734,45 @@ class EditorApp : public App {
     }
 };
 
+static void saveConfig() {
+    nlohmann::json txt;
+    if(!newsViewOpen) txt["openedNews"] = "0.2.0.4";
+    else txt["openedNews"] = "false";
+    txt["window"]["width"] = loadedW;
+    txt["window"]["height"] = loadedH;
+    txt["layout"]["soundMixer"] = soundMixerOpen;
+    txt["layout"]["sceneView"] = sceneViewOpen;
+    txt["layout"]["metrics"] = metricsOpen;
+    txt["layout"]["lighting"] = lightingOpen;
+    txt["layout"]["atmosphere"] = atmosphereOpen;
+    txt["layout"]["entityEditor"] = entityEditorOpen;
+    txt["layout"]["sceneContentView"] = sceneContentViewOpen;
+    std::ofstream o(".fseconfig");
+    o << std::setw(4) << txt << std::endl;
+}
+static void loadConfig() {
+    if(!std::filesystem::exists(".fseconfig")) return;
+    std::ifstream ifs(".fseconfig");
+    nlohmann::json txt = nlohmann::json::parse(ifs);
+    if(txt.at("openedNews") == "0.2.0.4") newsViewOpen = false;
+    else newsViewOpen = true;
+    loadedW = txt["window"]["width"];
+    loadedH = txt["window"]["height"];
+    soundMixerOpen =        txt["layout"]["soundMixer"];
+    sceneViewOpen =         txt["layout"]["sceneView"];
+    metricsOpen =           txt["layout"]["metrics"];
+    lightingOpen =          txt["layout"]["lighting"];
+    atmosphereOpen =        txt["layout"]["atmosphere"];
+    entityEditorOpen =      txt["layout"]["entityEditor"];
+    sceneContentViewOpen =  txt["layout"]["sceneContentView"];
+}
+
 int main() {
     EditorApp app{};
-    return app.start("Firesteel 0.2.0.4", 800, 600, WS_NORMAL);
+    loadConfig();
+    int r = app.start("Firesteel 0.2.0.4", 800, 600, WS_NORMAL);
+    saveConfig();
+    return r;
 }
 
 static std::string getDrawModName() {

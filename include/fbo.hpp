@@ -75,6 +75,7 @@ namespace Firesteel {
 
         unsigned int getID(const size_t& tID = 0) const { return FBOtextures[tID]; }
         glm::vec2 getSize() const { return mSize; }
+        float aspect() const { return (mSize.x / mSize.y); }
     private:
         glm::vec2 mSize = glm::vec2(0);
         unsigned int quadVAO = 0, quadVBO = 0;
