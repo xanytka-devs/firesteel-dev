@@ -35,12 +35,14 @@ namespace FSOAL {
 			alGenSources(1, &mSource);
 			return alGetError() != AL_NO_ERROR;
 		}
-		bool initialize(std::string tSrc) {
+		bool initialize(std::string tSrc, float tGain = 1.0f, bool tLooping = false) {
 			alGetError(); // clear error code 
 			alGenBuffers(1, &mBuffer);
 			alGenSources(1, &mSource);
 			if(alGetError() != AL_NO_ERROR) return false;
 			load(tSrc);
+			setGain(tGain);
+			setLooping(tLooping);
 			return true;
 		}
 		void remove() const {

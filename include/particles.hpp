@@ -25,7 +25,7 @@ namespace Firesteel {
     class ParticleSystem {
     public:
         std::vector<Particle> particles;
-        unsigned int VAO, VBO;
+        unsigned int VAO = 0, VBO = 0;
         unsigned int maxParticles;
         glm::vec3 emitterPosition;
 

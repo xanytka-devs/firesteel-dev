@@ -20,6 +20,7 @@ using namespace Firesteel;
 #define _GLIBCXX_USE_NANOSLEEP
 #include <thread>
 #include "../include/utils/json.hpp"
+#include "../include/editor/undo_buffer.hpp"
 
 #pragma region Defines
 Camera camera(glm::vec3(0.0f, 0.0f, 3.0f), glm::vec3(0, 0, -90));
@@ -58,11 +59,16 @@ bool lightingOpen = false;
 bool atmosphereOpen = false;
 bool entityEditorOpen = true;
 bool sceneContentViewOpen = true;
+bool undoHistory = false;
+
+bool overrideAspect = false;
+float clipSpace = 1.0f;
 
 bool displayGizmos = true;
 GLuint texID = 0;
 bool drawSkybox = true;
-int loadedW, loadedH;
+int loadedW = 800, loadedH = 600;
+glm::vec2 sceneWinSize = glm::vec2(loadedW,loadedH);
 
 Entity* heldEntity;
 #pragma endregion
@@ -160,12 +166,14 @@ class EditorApp : public App {
     Entity backpack, quad, box, phoneBooth;
     Cubemap sky;
     FSOAL::Source phoneAmbience;
-    FSOAL::AudioLayer alSFX{ 1.f,1.0f };
+    FSOAL::AudioLayer alSFX{};
     FSOAL::Source audio;
-    FSOAL::AudioLayer alBG{ 1.0f,1.0f };
+    FSOAL::AudioLayer alBG{};
     std::string newsTxtLoaded = "";
+    ActionRegistry actions;
     virtual void onInitialize() override {
         window.setIcon("app.png");
+        window.setClearColor(glm::vec3(0.0055f, 0.002f, 0.f));
         // Getting ready text renderer.
         textShader = Shader("res/text.vs", "res/text.fs");
         TextRenderer::initialize();
@@ -177,9 +185,7 @@ class EditorApp : public App {
         // OpenAL setup.
         displayLoadingMsg("Initializing OpenAL", &textShader, &window);
         FSOAL::initialize();
-        audio.initialize("res/audio/elevator-music.mp3");
-        audio.setGain(0.2f);
-        audio.setLooping(true);
+        audio.initialize("res/audio/elevator-music.mp3", 0.2f, true);
         audio.play();
         // OpenAL info.
         LOG_INFO("OpenAL context created:");
@@ -223,6 +229,7 @@ class EditorApp : public App {
         if (!ppFBO.isComplete()) LOG_ERRR("FBO isn't complete");
         if (!imguiFBO.isComplete()) LOG_ERRR("FBO isn't complete");
         camera.farPlane = 1000;
+        sceneWinSize = window.getSize();
         // ImGUI setup.
         LOG_INFO("Initializing ImGui");
         displayLoadingMsg("Initializing ImGui", &textShader, &window);
@@ -232,19 +239,19 @@ class EditorApp : public App {
         LOG_INFO("ImGui ready");
         newsTxtLoaded = StrFromFile("News.md");
         //OpenAL.
-        phoneAmbience.initialize("res/audio/tone.wav");
-        phoneAmbience.setGain(0.1f);
-        phoneAmbience.setLooping(true);
+        phoneAmbience.initialize("res/audio/tone.wav", 0.1f, true);
         phoneAmbience.setPostion(10.f, 0.f, 10.f);
         audio.remove();
-        audio.initialize("res/audio/harbour-port-ambience.wav");
+        audio.initialize("res/audio/harbour-port-ambience.wav", 0.2f, true);
         audio.play();
         phoneAmbience.play();
     }
     virtual void onUpdate() override {
         if (!drawImGUI)
-            if (ppFBO.getSize() != window.getSize())
+            if (ppFBO.getSize() != window.getSize()) {
                 ppFBO.scale(window.getSize());
+                camera.aspect = ppFBO.aspect();
+            }
         std::thread GPUThreadT(_gpuThreadTimer);
         /* Input processing */ {
             processInput(&window, window.ptr(), deltaTime);
@@ -257,7 +264,6 @@ class EditorApp : public App {
             wireframeEnabled ? glPolygonMode(GL_FRONT_AND_BACK, GL_LINE) : glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
         }
         /* Prerender processing */ {
-            camera.aspect = ppFBO.aspect();
             sLight.position = camera.pos;
             sLight.direction = camera.Forward;
             sky.bind();
@@ -266,7 +272,7 @@ class EditorApp : public App {
             modelShader.setVec3("spotLights[0].position", sLight.position);
             modelShader.setVec3("spotLights[0].direction", sLight.direction);
         }
-        glm::mat4 projection = camera.getProjection(1);
+        glm::mat4 projection = camera.getProjection(clipSpace);
         glm::mat4 view = camera.getView();
         glm::mat4 model = glm::mat4(1.0f);
         std::thread DrawThreadT(_drawThreadTimer);
@@ -398,7 +404,7 @@ class EditorApp : public App {
                 ImGui::PopStyleVar(3);
                 ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
                 ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
-                ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 3.0f);
+                ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
                 const ImGuiViewport* viewport = ImGui::GetMainViewport();
                 ImGui::SetNextWindowPos(viewport->WorkPos);
                 ImGui::SetNextWindowSize(viewport->WorkSize);
@@ -406,13 +412,9 @@ class EditorApp : public App {
                 ImGuiID dockspace_id = ImGui::GetID("Firesteel Dev Editor");
                 ImGui::Begin("Firesteel Dev Editor", NULL, FSImGui::defaultDockspaceWindowFlags);
                 ImGui::DockSpace(dockspace_id, ImVec2(0.0f, 0.0f), FSImGui::defaultDockspaceFlags);
-                ImGui::PopStyleVar(3);
-                ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 1.0f);
-                ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(5.0f, 5.0f));
-                ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 3.0f);
                 // Upper help menu.
                 if (ImGui::BeginMenuBar()) {
-                    if (ImGui::BeginMenu(u8" Файл")) {
+                    if (ImGui::BeginMenu(u8"Файл")) {
                         if (ImGui::MenuItem(u8"Сохранить")) {
                             FileDialog fd;
                             fd.filter = "All\0*.*\0HTML Document (*.html)\0*.HTML\0";
@@ -435,12 +437,12 @@ class EditorApp : public App {
                             }
                         }
                         ImGui::Separator();
-                        if (ImGui::MenuItem(u8"Закрыть (Esc)"))
-                            window.close();
+                        if (ImGui::MenuItem(u8"Закрыть (Esc)")) window.close();
                         ImGui::EndMenu();
                     }
-                    if (ImGui::BeginMenu(u8" Окно")) {
+                    if (ImGui::BeginMenu(u8"Окно")) {
                         ImGui::Checkbox(u8"Атмосфера", &atmosphereOpen);
+                        ImGui::Checkbox(u8"История действий", &undoHistory);
                         ImGui::Checkbox(u8"Миксер аудио", &soundMixerOpen);
                         ImGui::Checkbox(u8"Новости", &newsViewOpen);
                         ImGui::Checkbox(u8"Просмотр сцены", &sceneViewOpen);
@@ -454,7 +456,7 @@ class EditorApp : public App {
                         }
                         ImGui::EndMenu();
                     }
-                    if (ImGui::BeginMenu(u8" Тестирование")) {
+                    if (ImGui::BeginMenu(u8"Тестирование")) {
                         if (ImGui::MenuItem(u8"Переключить Нативный UI")) { drawNativeUI = !drawNativeUI; }
                         if (ImGui::MenuItem(u8"Выключить ImGui")) {
                             drawImGUI = false;
@@ -486,9 +488,11 @@ class EditorApp : public App {
                     ImVec2 winSceneSize = ImGui::GetWindowSize();
                     winSceneSize.y -= 20;
                     ImGui::Image((void*)imguiFBO.getID(), winSceneSize, ImVec2(0, 1), ImVec2(1, 0));
-                    if (ppFBO.getSize() != glm::vec2(winSceneSize.x, winSceneSize.y)) {
-                        ppFBO.scale(static_cast<int>(winSceneSize.x), static_cast<int>(winSceneSize.y));
-                        imguiFBO.scale(static_cast<int>(winSceneSize.x), static_cast<int>(winSceneSize.y));
+                    glm::vec2 winSize = glm::vec2(winSceneSize.x, winSceneSize.y);
+                    if (imguiFBO.getSize() != winSize) {
+                        ppFBO.scale(static_cast<int>(winSize.x), static_cast<int>(winSize.y));
+                        imguiFBO.scale(static_cast<int>(winSize.x), static_cast<int>(winSize.y));
+                        camera.aspect = ppFBO.aspect();
                     }
 
                     ImGui::PopStyleVar(3);
@@ -529,7 +533,7 @@ class EditorApp : public App {
 
                             float transl[3] = { 0,0,0 };
                             float rotat[3] = { 0,0,0 };
-                            float scalel[3] = { 1,1,1 };
+                            float scalel[3] = { 0,0,0 };
                             ImGuizmo::DecomposeMatrixToComponents(glm::value_ptr(curModel), transl, rotat, scalel);
                             heldEntity->transform.Position = float3ToVec3(transl);
                             heldEntity->transform.Rotation = float3ToVec3(rotat);
@@ -568,10 +572,29 @@ class EditorApp : public App {
                     if (ImGui::CollapsingHeader("Fog")) {
                         FSImGui::ColorEdit3("Color", &atmos.fog.color);
                         ImGui::Separator();
-                        ImGui::DragFloat("Start", &atmos.fog.start);
-                        ImGui::DragFloat("End", &atmos.fog.end);
-                        ImGui::DragFloat("Density", &atmos.fog.density);
+                        ImGui::DragFloat("Start", &atmos.fog.start, 0.1f);
+                        ImGui::DragFloat("End", &atmos.fog.end, 0.1f);
+                        ImGui::DragFloat("Density", &atmos.fog.density, 0.1f);
                         ImGui::DragInt("Equation", &atmos.fog.equation, 1, 0, 2);
+                    }
+                    if (ImGui::CollapsingHeader("Camera")) {
+                        FSImGui::DragFloat3("Position", &camera.pos);
+                        FSImGui::DragFloat3("Rotation", &camera.rot);
+                        float planes[2] = { camera.nearPlane, camera.farPlane };
+                        ImGui::DragFloat2("Planes", planes, 0.1f);
+                        ImGui::Checkbox("Is Perspective", &camera.isPerspective);
+                        ImGui::DragFloat("Field of View", &camera.fov, 0.01f);
+                        ImGui::Checkbox("Override private properties", &overrideAspect);
+                        if (ImGui::IsItemHovered()) {
+                            ImGui::BeginTooltip();
+                            ImGui::Text("!!! WARNING !!!");
+                            ImGui::Text(u8"Если вы не знаете, что делают эти параметры - не трогайте их.");
+                            ImGui::EndTooltip();
+                        }
+                        if (overrideAspect) {
+                            ImGui::DragFloat("Aspect", &camera.aspect, 0.01f);
+                            ImGui::DragFloat("Clip space", &clipSpace, 0.01f);
+                        }
                     }
 
                     ImGui::End();
@@ -698,8 +721,10 @@ class EditorApp : public App {
                     ImGui::End();
                 }
 
-                threadRuntime[0] = false;
-                GPUThreadT.join();
+                if (drawImGUI) {
+                    threadRuntime[0] = false;
+                    GPUThreadT.join();
+                }
                 threadRuntime[2] = false;
                 ImGuiThreadT.join();
                 if (metricsOpen) {
@@ -738,8 +763,10 @@ static void saveConfig() {
     nlohmann::json txt;
     if(!newsViewOpen) txt["openedNews"] = "0.2.0.4";
     else txt["openedNews"] = "false";
+
     txt["window"]["width"] = loadedW;
     txt["window"]["height"] = loadedH;
+
     txt["layout"]["soundMixer"] = soundMixerOpen;
     txt["layout"]["sceneView"] = sceneViewOpen;
     txt["layout"]["metrics"] = metricsOpen;
@@ -747,30 +774,39 @@ static void saveConfig() {
     txt["layout"]["atmosphere"] = atmosphereOpen;
     txt["layout"]["entityEditor"] = entityEditorOpen;
     txt["layout"]["sceneContentView"] = sceneContentViewOpen;
-    std::ofstream o(".fseconfig");
+    txt["layout"]["undoHistory"] = undoHistory;
+    std::ofstream o(".fsecfg");
     o << std::setw(4) << txt << std::endl;
 }
 static void loadConfig() {
-    if(!std::filesystem::exists(".fseconfig")) return;
-    std::ifstream ifs(".fseconfig");
+    if(!std::filesystem::exists(".fsecfg")) return;
+    std::ifstream ifs(".fsecfg");
     nlohmann::json txt = nlohmann::json::parse(ifs);
-    if(txt.at("openedNews") == "0.2.0.4") newsViewOpen = false;
-    else newsViewOpen = true;
-    loadedW = txt["window"]["width"];
-    loadedH = txt["window"]["height"];
-    soundMixerOpen =        txt["layout"]["soundMixer"];
-    sceneViewOpen =         txt["layout"]["sceneView"];
-    metricsOpen =           txt["layout"]["metrics"];
-    lightingOpen =          txt["layout"]["lighting"];
-    atmosphereOpen =        txt["layout"]["atmosphere"];
-    entityEditorOpen =      txt["layout"]["entityEditor"];
-    sceneContentViewOpen =  txt["layout"]["sceneContentView"];
+    if(!txt["openedNews"].is_null()) {
+        if (txt["openedNews"] == "0.2.0.4") newsViewOpen = false;
+        else newsViewOpen = true;
+    }
+    if(!txt["window"].is_null()) {
+        loadedW = txt["window"]["width"];
+        loadedH = txt["window"]["height"];
+    }
+    if(!txt["layout"].is_null()) {
+        txt = txt.at("layout");
+        if(!txt["soundMixer"].is_null())         soundMixerOpen = txt["soundMixer"];
+        if(!txt["sceneView"].is_null())          sceneViewOpen = txt["sceneView"];
+        if(!txt["metrics"].is_null())            metricsOpen = txt["metrics"];
+        if(!txt["lighting"].is_null())           lightingOpen = txt["lighting"];
+        if(!txt["atmosphere"].is_null())         atmosphereOpen = txt["atmosphere"];
+        if(!txt["entityEditor"].is_null())       entityEditorOpen = txt["entityEditor"];
+        if(!txt["sceneContentView"].is_null())   sceneContentViewOpen = txt["sceneContentView"];
+        if(!txt["undoHistory"].is_null())        undoHistory = txt["undoHistory"];
+    }
 }
 
 int main() {
     EditorApp app{};
     loadConfig();
-    int r = app.start("Firesteel 0.2.0.4", 800, 600, WS_NORMAL);
+    int r = app.start("Firesteel 0.2.0.4", loadedW, loadedH, WS_NORMAL);
     saveConfig();
     return r;
 }

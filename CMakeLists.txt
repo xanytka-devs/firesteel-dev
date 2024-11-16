@@ -28,6 +28,7 @@ set(PRJ_ALL
 
 add_executable(${PRJ_NAME}
 	${PRJ_ALL}
+	"build/app.rc"
 )
 
 source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR}/ FILES

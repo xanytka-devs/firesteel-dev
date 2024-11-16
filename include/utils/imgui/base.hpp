@@ -63,11 +63,11 @@ namespace FSImGui {
     }
 
     float vec[3] = { 0,0,0 };
-    static bool ColorEdit3(const char* tName, glm::vec3* tColor) {
+    static bool ColorEdit3(const char* tName, glm::vec3* tColor, const float& tSpeed = 0.1f) {
         vec[0] = tColor->r;
         vec[1] = tColor->g;
         vec[2] = tColor->b;
-        bool b = ImGui::ColorEdit3(tName, vec);
+        bool b = ImGui::ColorEdit3(tName, vec, tSpeed);
         if (b) {
             tColor->x = vec[0];
             tColor->y = vec[1];
@@ -75,11 +75,11 @@ namespace FSImGui {
         }
         return b;
     }
-    static bool DragFloat3(const char* tName, glm::vec3* tFloats) {
+    static bool DragFloat3(const char* tName, glm::vec3* tFloats, const float& tSpeed = 0.1f) {
         vec[0] = tFloats->r;
         vec[1] = tFloats->g;
         vec[2] = tFloats->b;
-        bool b = ImGui::DragFloat3(tName, vec);
+        bool b = ImGui::DragFloat3(tName, vec, tSpeed);
         if(b) {
             tFloats->r = vec[0];
             tFloats->g = vec[1];

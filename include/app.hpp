@@ -31,7 +31,6 @@ namespace Firesteel {
             window = Window(tWinWidth, tWinHeight);
             if(!window.initialize(tTitle, tWinState, BOUND_GL_VERSION_MAJOR, BOUND_GL_VERSION_MINOR))
                 return 1;
-            window.setClearColor(glm::vec3(0.185f, 0.15f, 0.1f));
 
             printf("\n");
             //Check for Vulkan.

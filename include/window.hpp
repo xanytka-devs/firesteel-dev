@@ -106,9 +106,9 @@ namespace Firesteel {
         bool getVSync() const { return mVSync; }
 
         bool isOpen() const { return (!mClosed && !glfwWindowShouldClose(mPtr)); }
-        int getHeight() const { return mHeight; }
-        int getWidth() const { return mWidth; }
-        glm::vec2 getSize() const { return glm::vec2(mWidth, mHeight); }
+        int getHeight() { getSizeInternal(); return mHeight; }
+        int getWidth() { getSizeInternal(); return mWidth; }
+        glm::vec2 getSize() { getSizeInternal(); return glm::vec2(mWidth, mHeight); }
         float aspect() const { return static_cast<float>(mWidth) / static_cast<float>(mHeight); }
         GLFWwindow* ptr() const { return mPtr; }
 
@@ -151,6 +151,9 @@ namespace Firesteel {
         }
         static void errorCallback(int tEC, const char* tDescription) {
             LOG_ERRR("GLFW Error(" + std::to_string(tEC) + "): " + tDescription);
+        }
+        void getSizeInternal() {
+            glfwGetWindowSize(mPtr, &mWidth, &mHeight);
         }
 	};
 }
