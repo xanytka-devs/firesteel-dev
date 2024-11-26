@@ -192,6 +192,10 @@ namespace Firesteel {
             texs = loadMaterialTextures(material, aiTextureType_AMBIENT, "height");
             textures.insert(textures.end(), texs.begin(), texs.end());
             texs.clear();
+            // Opacity maps.
+            texs = loadMaterialTextures(material, aiTextureType_OPACITY, "opacity");
+            textures.insert(textures.end(), texs.begin(), texs.end());
+            texs.clear();
 
             return Mesh(vertices, indices, textures);
         }

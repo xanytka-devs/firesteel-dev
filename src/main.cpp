@@ -71,6 +71,13 @@ int loadedW = 800, loadedH = 600;
 glm::vec2 sceneWinSize = glm::vec2(loadedW,loadedH);
 
 Entity* heldEntity;
+
+const char* acts[4] = {
+    u8"Перемещение объекта 'Тесст'",
+    u8"Обновлена модель объекта 'Тест'",
+    u8"Объект 'Тест' переименов в 'Хрю'",
+    u8"Обьект 'Хрю' был удалён"
+};
 #pragma endregion
 
 #pragma region Timers
@@ -142,19 +149,20 @@ SpotLight sLight{
    glm::vec3(-2.f, 1.5f, -2.f), // Position.
    glm::vec3(0), // Direction.
    // Lighting params.
-   glm::vec3(0.f), // Ambient.
-   glm::vec3(1.0f, 0.5f, 0.31f), // Diffuse.
+   glm::vec3(1.f), // Ambient.
+   glm::vec3(5.0f), // Diffuse.
    glm::vec3(1.f), // Specular.
    // Attenuation.
-   glm::cos(glm::radians(12.5f)), // Cutoff.
-   glm::cos(glm::radians(17.5f)), // Outer cutoff.
+   glm::cos(glm::radians(17.5f)), // Cutoff.
+   glm::cos(glm::radians(20.5f)), // Outer cutoff.
 };
+bool sLightEnabled = false;
 static void updateLightInShader(Shader* tShader) {
     tShader->enable();
     atmos.setParams(tShader);
     tShader->setInt("numPointLights", 1);
     pLight.setParams(tShader, 0);
-    tShader->setInt("numSpotLights", 1);
+    tShader->setInt("numSpotLights", sLightEnabled ? 1 : 0);
     sLight.setParams(tShader, 0);
 }
 
@@ -185,8 +193,7 @@ class EditorApp : public App {
         // OpenAL setup.
         displayLoadingMsg("Initializing OpenAL", &textShader, &window);
         FSOAL::initialize();
-        audio.initialize("res/audio/elevator-music.mp3", 0.2f, true);
-        audio.play();
+        audio.init("res/audio/elevator-music.mp3", 0.2f, true)->play();
         // OpenAL info.
         LOG_INFO("OpenAL context created:");
         LOG_INFO(std::string("	Device: ") + alcGetString(NULL, ALC_DEFAULT_DEVICE_SPECIFIER) + "\n");
@@ -239,12 +246,8 @@ class EditorApp : public App {
         LOG_INFO("ImGui ready");
         newsTxtLoaded = StrFromFile("News.md");
         //OpenAL.
-        phoneAmbience.initialize("res/audio/tone.wav", 0.1f, true);
-        phoneAmbience.setPostion(10.f, 0.f, 10.f);
-        audio.remove();
-        audio.initialize("res/audio/harbour-port-ambience.wav", 0.2f, true);
-        audio.play();
-        phoneAmbience.play();
+        phoneAmbience.init("res/audio/tone.wav", 0.1f, true)->setPostion(10.f, 0.f, 10.f)->play();
+        audio.init("res/audio/harbour-port-ambience.wav", 0.2f, true)->play();
     }
     virtual void onUpdate() override {
         if (!drawImGUI)
@@ -269,6 +272,8 @@ class EditorApp : public App {
             sky.bind();
             modelShader.enable();
             modelShader.setInt("lightingType", lightingMode);
+            modelShader.setInt("DrawMode", drawMode);
+            modelShader.setInt("skybox", 11);
             modelShader.setVec3("spotLights[0].position", sLight.position);
             modelShader.setVec3("spotLights[0].direction", sLight.direction);
         }
@@ -277,8 +282,6 @@ class EditorApp : public App {
         glm::mat4 model = glm::mat4(1.0f);
         std::thread DrawThreadT(_drawThreadTimer);
         /* Render backpack */ {
-            modelShader.setInt("DrawMode", drawMode);
-            modelShader.setInt("skybox", 11);
             modelShader.setMat4("projection", projection);
             modelShader.setMat4("view", view);
             modelShader.setVec3("viewPos", camera.pos);
@@ -680,6 +683,16 @@ class EditorApp : public App {
                     }
                     ImGui::End();
                 }
+                if (undoHistory) {
+                    ImGui::Begin("Undo History");
+                    for (size_t i = 0; i < 4; i++)
+                    {
+                        ImGui::BeginGroup();
+                        ImGui::Text(acts[i]);
+                        ImGui::EndGroup();
+                    }
+                    ImGui::End();
+                }
                 if (texViewOpen) {
                     ImGui::Begin("Texture Viewer", &texViewOpen);
                     float wW = ImGui::GetWindowWidth();
@@ -865,7 +878,7 @@ void processInput(Window* tWin, GLFWwindow* tPtr, float tDeltaTime) {
     }
     else speed_mult = 2.f;
 
-    if (glfwGetKey(tPtr, GLFW_KEY_V) == GLFW_PRESS)
+    if (glfwGetKey(tPtr, GLFW_KEY_M) == GLFW_PRESS)
         tWin->toggleVSync();
 
     if (glfwGetKey(tPtr, GLFW_KEY_W) == GLFW_PRESS)
@@ -908,7 +921,8 @@ void processInput(Window* tWin, GLFWwindow* tPtr, float tDeltaTime) {
         if (glfwGetKey(tPtr, GLFW_KEY_4) == GLFW_PRESS) { lightingMode = 3; }
     }    
 
-    if (glfwGetKey(tPtr, GLFW_KEY_F) == GLFW_PRESS) { wireframeEnabled = !wireframeEnabled; }
+    if (glfwGetKey(tPtr, GLFW_KEY_V) == GLFW_PRESS) { wireframeEnabled = !wireframeEnabled; }
+    if (glfwGetKey(tPtr, GLFW_KEY_F) == GLFW_PRESS) { sLightEnabled = !sLightEnabled; }
 }
 float MouseSensitivity = 0.1f;
 void mouseCallback(GLFWwindow* window, double xposIn, double yposIn) {

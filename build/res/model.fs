@@ -20,7 +20,8 @@ struct Material {
 	sampler2D emission0;
 	vec4 emission;
 	sampler2D normal0;
-	vec4 normal;
+	bool opacityMask;
+	sampler2D opacity0;
 	
 	float emissionFactor;
 	vec3 emissionColor;
@@ -111,15 +112,18 @@ vec3 TangentFragPos;
 void main() {
 	// material values
 	vec4 diffMap = material.diffuse;
+	vec4 opacMap = vec4(1);
 	float transparency = 1.0;
 	vec4 specMap = material.specular;
 	vec4 emisMap = material.emission;
-	vec4 normMap = material.normal;
+	vec4 normMap = vec4(1);
 	// texture values
 	if(!noTextures) {
 		diffMap = texture(material.diffuse0, fs_in.frag_UV);
+		opacMap = texture(material.opacity0, fs_in.frag_UV);
 		transparency = diffMap.a;
 		if(transparency<0.1) discard;
+		if(material.opacityMask) transparency = opacMap.r;
 		specMap = texture(material.specular0, fs_in.frag_UV);
 		emisMap = texture(material.emission0, fs_in.frag_UV);
 		normMap = texture(material.normal0, fs_in.frag_UV);

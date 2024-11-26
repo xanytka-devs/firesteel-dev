@@ -40,7 +40,6 @@ namespace Firesteel {
         glm::vec3 diffuse{ 1.f };
         glm::vec3 specular{ 0.5f };
         glm::vec3 emission{ 0.f };
-        glm::vec3 normal{ 1.f };
         glm::vec3 height{ 0.f };
 
         /// Constructor with textures.
@@ -67,11 +66,11 @@ namespace Firesteel {
             size_t normalNr = 0;
             size_t heightNr = 0;
             size_t emisNr = 0;
+            size_t opacNr = 0;
             shader->setVec4("material.ambient", glm::vec4(ambient, 1));
             shader->setVec4("material.diffuse", glm::vec4(diffuse, 1));
             shader->setVec4("material.specular", glm::vec4(specular, 1));
             shader->setVec4("material.emission", glm::vec4(emission, 1));
-            shader->setVec4("material.normal", glm::vec4(normal, 1));
             shader->setBool("noTextures", true);
             if(!mNoTextures) {
                 shader->setBool("noTextures", false);
@@ -90,10 +89,13 @@ namespace Firesteel {
                         number = emisNr++;
                     else if(name == "height")
                         number = heightNr++;
+                    else if(name == "opacity")
+                        number = opacNr++;
                     // Now set the sampler to the correct texture unit.
                     textures[i].bind(i);
                     shader->setInt("material." + name + std::to_string(number), i);
                 }
+                shader->setBool("material.opacityMask", opacNr > 0);
             }
 
             // Draw mesh.

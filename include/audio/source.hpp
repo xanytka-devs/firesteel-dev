@@ -36,6 +36,7 @@ namespace FSOAL {
 			return alGetError() != AL_NO_ERROR;
 		}
 		bool initialize(std::string tSrc, float tGain = 1.0f, bool tLooping = false) {
+			if (mInited) remove();
 			alGetError(); // clear error code 
 			alGenBuffers(1, &mBuffer);
 			alGenSources(1, &mSource);
@@ -45,10 +46,23 @@ namespace FSOAL {
 			setLooping(tLooping);
 			return true;
 		}
-		void remove() const {
+		Source* init(std::string tSrc, float tGain = 1.0f, bool tLooping = false) {
+			if (mInited) remove();
+			alGetError(); // clear error code 
+			alGenBuffers(1, &mBuffer);
+			alGenSources(1, &mSource);
+			if (alGetError() != AL_NO_ERROR) return nullptr;
+			load(tSrc);
+			setGain(tGain);
+			setLooping(tLooping);
+			mInited = true;
+			return this;
+		}
+		void remove() {
 			stop();
 			alDeleteSources(1, &mSource);
 			alDeleteBuffers(1, &mBuffer);
+			mInited = false;
 		}
 
 		bool load(std::string tSrc) {
@@ -87,39 +101,48 @@ namespace FSOAL {
 		float getPitch() const { return mPitch; }
 		bool isLooping() const { return mLooping; }
 
-		void setPostion(glm::vec3 tPos) {
+		Source* setPostion(glm::vec3 tPos) {
 			mPosition = tPos;
 			alSource3f(mSource, AL_POSITION, mPosition.x, mPosition.y, mPosition.z);
+			return this;
 		}
-		void setPostion(float tX, float tY, float tZ) {
+		Source* setPostion(float tX, float tY, float tZ) {
 			mPosition = glm::vec3(tX,tY,tZ);
 			alSource3f(mSource, AL_POSITION, mPosition.x, mPosition.y, mPosition.z);
+			return this;
 		}
-		void setVelocity(glm::vec3 tVel) {
+		Source* setVelocity(glm::vec3 tVel) {
 			mVelocity = tVel;
 			alSource3f(mSource, AL_VELOCITY, mVelocity.x, mVelocity.y, mVelocity.z);
+			return this;
 		}
-		void setVelocity(float tX, float tY, float tZ) {
+		Source* setVelocity(float tX, float tY, float tZ) {
 			mVelocity = glm::vec3(tX, tY, tZ);
 			alSource3f(mSource, AL_VELOCITY, mVelocity.x, mVelocity.y, mVelocity.z);
+			return this;
 		}
-		void setGain(float tGain) {
+		Source* setGain(float tGain) {
 			mGain = tGain;
 			alSourcef(mSource, AL_GAIN, mGain);
+			return this;
 		}
-		void setGain(AudioLayer tAl) {
+		Source* setGain(AudioLayer tAl) {
 			alSourcef(mSource, AL_GAIN, mGain * tAl.gain);
+			return this;
 		}
-		void setPitch(float tPitch) {
+		Source* setPitch(float tPitch) {
 			mPitch = tPitch;
 			alSourcef(mSource, AL_PITCH, mPitch);
+			return this;
 		}
-		void setPitch(AudioLayer tAl) {
+		Source* setPitch(AudioLayer tAl) {
 			alSourcef(mSource, AL_PITCH, mPitch * tAl.pitch);
+			return this;
 		}
-		void setLooping(bool tLoop) {
+		Source* setLooping(bool tLoop) {
 			mLooping = tLoop;
 			alSourcei(mSource, AL_LOOPING, mLooping ? AL_TRUE : AL_FALSE);
+			return this;
 		}
 
 	private:
@@ -128,7 +151,7 @@ namespace FSOAL {
 		glm::vec3 mVelocity = glm::vec3(0);
 		float mGain;
 		float mPitch;
-		bool mLooping;
+		bool mLooping, mInited = false;
 
 		/* AL data */
 		ALuint mSource = 0;
