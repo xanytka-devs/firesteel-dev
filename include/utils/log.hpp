@@ -50,7 +50,6 @@
 #define CMD_BG_WHITE 240
 
 #endif
-#ifndef NDEBUG
 	static void log_c(const std::string& tMsg, const int t_mod = CMD_F_WHITE) {
 		log(tMsg + "\n", t_mod);
 	}
@@ -59,36 +58,33 @@
 	}
 	static void log_info(const std::string& tMsg) {
 		log("[INFO] ", CMD_F_GRAY);
-		log(tMsg + "\n");
+		log(tMsg + "\n", CMD_F_WHITE, false);
 	}
 	static void log_state(const std::string& tMsg) {
 		log("[STATE] ", CMD_F_LBLUE);
-		log(tMsg + "\n");
+		log(tMsg + "\n", CMD_F_WHITE, false);
 	}
 	static void log_warn(const std::string& tMsg) {
 		log("[WARN] ", CMD_F_YELLOW);
-		log(tMsg + "\n");
+		log(tMsg + "\n", CMD_F_WHITE, false);
 	}
 	static void log_error(const std::string& tMsg) {
 		log("[ERRR] ", CMD_F_RED);
-		log(tMsg + "\n");
+		log(tMsg + "\n", CMD_F_WHITE, false);
 	}
 	static void log_critical(const std::string& tMsg) {
 		log("[CRIT]", CMD_BG_RED + CMD_F_WHITE);
-		log(tMsg + "\n");
+		log(tMsg + "\n", CMD_F_WHITE, false);
 	}
 	/// Logs message to console with specified color and prompt.
-	static void log(const std::string& tMsg, const int t_mod = CMD_F_WHITE);
+	static void log(const std::string& tMsg, const int t_mod = CMD_F_WHITE, const bool tAddTimestamp = true);
+	// Clears console log window.
 	static void clear();
-#else
-	static void log_c        (const std::string& tMsg, const int t_mod = CMD_F_WHITE) { }
-	static void log_ntag     (const std::string& tMsg) { }
-	static void log_info     (const std::string& tMsg) { }
-	static void log_state    (const std::string& tMsg) { }
-	static void log_warn     (const std::string& tMsg) { }
-	static void log_error    (const std::string& tMsg) { }
-	static void log_critical (const std::string& tMsg) { }
-#endif
+	// Logs something only to file.
+	static void logToFile(const char* tMsg, const bool tAddTimestamp);
+	// [DANGEROUS]
+	// Can cause deletion of 'latest.log'.
+	static void destroyFileLogger();
 };
 
 #endif // !FS_LOG_H

@@ -2,6 +2,7 @@
 #define FS_IMGUI_BASE
 
 #include <../external/imgui/imgui.h>
+#include <../external/imgui/misc/cpp/imgui_stdlib.h>
 #include <../external/imgui/backends/imgui_impl_glfw.h>
 #include <../external/imgui/backends/imgui_impl_opengl3.h>
 #include "../external/imgui/imgui_internal.h"

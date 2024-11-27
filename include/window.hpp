@@ -84,6 +84,9 @@ namespace Firesteel {
         void terminate() const {
             glfwTerminate();
         }
+        void setTitle(const std::string& tTitle) {
+            glfwSetWindowTitle(mPtr, tTitle.c_str());
+        }
         void setIcon(const std::string& tIcon) {
             GLFWimage images[1]{};
             if(!std::filesystem::exists(tIcon)) {

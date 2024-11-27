@@ -54,12 +54,16 @@ bool sfxMuted = false;
 float preMuteGain = 0.0f;
 bool newsViewOpen = true;
 bool sceneViewOpen = true;
-bool metricsOpen = true;
+bool threadsOpen = true;
 bool lightingOpen = false;
 bool atmosphereOpen = false;
 bool entityEditorOpen = true;
 bool sceneContentViewOpen = true;
-bool undoHistory = false;
+bool undoHistoryOpen = false;
+bool consoleOpen = false;
+bool consoleDevMode = false;
+std::string consoleInput;
+std::string consoleLog;
 
 bool overrideAspect = false;
 float clipSpace = 1.0f;
@@ -69,11 +73,12 @@ GLuint texID = 0;
 bool drawSkybox = true;
 int loadedW = 800, loadedH = 600;
 glm::vec2 sceneWinSize = glm::vec2(loadedW,loadedH);
+const std::string GLOBAL_VER = "0.2.0.4";
 
 Entity* heldEntity;
 
 const char* acts[4] = {
-    u8"Перемещение объекта 'Тесст'",
+    u8"Перемещение объекта 'Тест'",
     u8"Обновлена модель объекта 'Тест'",
     u8"Объект 'Тест' переименов в 'Хрю'",
     u8"Обьект 'Хрю' был удалён"
@@ -248,6 +253,7 @@ class EditorApp : public App {
         //OpenAL.
         phoneAmbience.init("res/audio/tone.wav", 0.1f, true)->setPostion(10.f, 0.f, 10.f)->play();
         audio.init("res/audio/harbour-port-ambience.wav", 0.2f, true)->play();
+        window.setTitle(std::filesystem::current_path().u8string() + " | Firesteel " + GLOBAL_VER);
     }
     virtual void onUpdate() override {
         if (!drawImGUI)
@@ -425,9 +431,7 @@ class EditorApp : public App {
                             std::string res = fd.save();
                             if (res != "") {
                                 if (!StrEndsWith(StrToLower(res).c_str(), ".html")) res.append(".html");
-                                StrToFile(res, "\
-<html><head><meta http-equiv=\"refresh\" content=\"0; url=https://www.youtube.com/watch?v=dQw4w9WgXcQ\" /></head></html>\
-                            ");
+                                StrToFile(res, "Still WIP.");
                             }
                         }
                         if (ImGui::MenuItem(u8"Открыть")) {
@@ -445,7 +449,8 @@ class EditorApp : public App {
                     }
                     if (ImGui::BeginMenu(u8"Окно")) {
                         ImGui::Checkbox(u8"Атмосфера", &atmosphereOpen);
-                        ImGui::Checkbox(u8"История действий", &undoHistory);
+                        ImGui::Checkbox(u8"История действий", &undoHistoryOpen);
+                        ImGui::Checkbox(u8"Консоль", &consoleOpen);
                         ImGui::Checkbox(u8"Миксер аудио", &soundMixerOpen);
                         ImGui::Checkbox(u8"Новости", &newsViewOpen);
                         ImGui::Checkbox(u8"Просмотр сцены", &sceneViewOpen);
@@ -467,8 +472,8 @@ class EditorApp : public App {
                         }
                         ImGui::Separator();
                         ImGui::Checkbox(u8"Просмотр текстур", &texViewOpen);
-                        ImGui::Checkbox(u8"Статистика", &metricsOpen);
-                        ImGui::Checkbox(u8"Отображать \"штуковины\"", &displayGizmos);
+                        ImGui::Checkbox(u8"Потоки", &threadsOpen);
+                        ImGui::Checkbox(u8"Консоль разработчика", &consoleDevMode);
                         ImGui::EndMenu();
                     }
                     if (ImGui::Button("Guizmo")) displayGizmos = !displayGizmos;
@@ -683,8 +688,8 @@ class EditorApp : public App {
                     }
                     ImGui::End();
                 }
-                if (undoHistory) {
-                    ImGui::Begin("Undo History");
+                if (undoHistoryOpen) {
+                    ImGui::Begin("Undo History", &undoHistoryOpen);
                     for (size_t i = 0; i < 4; i++)
                     {
                         ImGui::BeginGroup();
@@ -693,6 +698,7 @@ class EditorApp : public App {
                     }
                     ImGui::End();
                 }
+
                 if (texViewOpen) {
                     ImGui::Begin("Texture Viewer", &texViewOpen);
                     float wW = ImGui::GetWindowWidth();
@@ -733,6 +739,40 @@ class EditorApp : public App {
                     glActiveTexture(GL_TEXTURE0);
                     ImGui::End();
                 }
+                if (consoleOpen) {
+                    ImGui::Begin("Console", &consoleOpen);
+                    if(consoleDevMode) {
+                        ImGui::Text(consoleLog.c_str());
+                        ImGuiInputTextFlags inputTextFlags =
+                            ImGuiInputTextFlags_CallbackHistory | ImGuiInputTextFlags_CallbackCharFilter |
+                            ImGuiInputTextFlags_CallbackCompletion | ImGuiInputTextFlags_EnterReturnsTrue | ImGuiInputTextFlags_CallbackAlways;
+                        ImGui::PushItemWidth(-ImGui::GetStyle().ItemSpacing.x * 7);
+                        if(ImGui::InputText("##dev_input", &consoleInput, inputTextFlags, nullptr, this)) {
+                            LOG_INFO("Executed cmd '" + consoleInput + "'");
+                            consoleLog += "> " + consoleInput + "\n";
+                            if(consoleInput == "help") {
+                                const char* hlpstr = "- help\n All available commands.\n\
+\n- exit\n Exits out of the app.\n\n- amogus\n Don't you dare.\n";
+                                consoleLog += hlpstr;
+                                LOG(hlpstr);
+                            } else if (consoleInput == "exit") {
+                                window.close();
+                            } else if (consoleInput == "amogus") {
+                                const char* amstr = " Bruh, this was obvious.\n";
+                                consoleLog += amstr;
+                                openURL("https://www.youtube.com/watch?v=dQw4w9WgXcQ");
+                                LOG(amstr);
+                            } else {
+                                const char* invstr = " Invalid command.\n";
+                                consoleLog += invstr;
+                                LOG(invstr);
+                            }
+                            consoleInput.clear();
+                        }
+                        ImGui::PopItemWidth();
+                    }
+                    ImGui::End();
+                }
 
                 if (drawImGUI) {
                     threadRuntime[0] = false;
@@ -740,8 +780,8 @@ class EditorApp : public App {
                 }
                 threadRuntime[2] = false;
                 ImGuiThreadT.join();
-                if (metricsOpen) {
-                    ImGui::Begin("Threads", &metricsOpen);
+                if (threadsOpen) {
+                    ImGui::Begin("Threads", &threadsOpen);
                     ImGui::Text(("FPS: " + std::to_string(fps)).c_str());
                     ImGui::Text(("Delta time: " + std::to_string(deltaTime)).c_str());
                     ImGui::Separator();
@@ -774,20 +814,24 @@ class EditorApp : public App {
 
 static void saveConfig() {
     nlohmann::json txt;
-    if(!newsViewOpen) txt["openedNews"] = "0.2.0.4";
+    if(!newsViewOpen) txt["openedNews"] = GLOBAL_VER;
     else txt["openedNews"] = "false";
 
     txt["window"]["width"] = loadedW;
     txt["window"]["height"] = loadedH;
 
+    txt["dev"]["consoleDevMode"] = consoleDevMode;
+
+    txt["layout"]["console"] = consoleOpen;
     txt["layout"]["soundMixer"] = soundMixerOpen;
     txt["layout"]["sceneView"] = sceneViewOpen;
-    txt["layout"]["metrics"] = metricsOpen;
+    txt["layout"]["metrics"] = threadsOpen;
     txt["layout"]["lighting"] = lightingOpen;
     txt["layout"]["atmosphere"] = atmosphereOpen;
     txt["layout"]["entityEditor"] = entityEditorOpen;
     txt["layout"]["sceneContentView"] = sceneContentViewOpen;
-    txt["layout"]["undoHistory"] = undoHistory;
+    txt["layout"]["undoHistory"] = undoHistoryOpen;
+
     std::ofstream o(".fsecfg");
     o << std::setw(4) << txt << std::endl;
 }
@@ -803,23 +847,27 @@ static void loadConfig() {
         loadedW = txt["window"]["width"];
         loadedH = txt["window"]["height"];
     }
+    if(!txt["dev"].is_null()) {
+        consoleDevMode = txt["dev"]["consoleDevMode"];
+    }
     if(!txt["layout"].is_null()) {
         txt = txt.at("layout");
+        if(!txt["console"].is_null())            consoleOpen = txt["console"];
         if(!txt["soundMixer"].is_null())         soundMixerOpen = txt["soundMixer"];
         if(!txt["sceneView"].is_null())          sceneViewOpen = txt["sceneView"];
-        if(!txt["metrics"].is_null())            metricsOpen = txt["metrics"];
+        if(!txt["metrics"].is_null())            threadsOpen = txt["metrics"];
         if(!txt["lighting"].is_null())           lightingOpen = txt["lighting"];
         if(!txt["atmosphere"].is_null())         atmosphereOpen = txt["atmosphere"];
         if(!txt["entityEditor"].is_null())       entityEditorOpen = txt["entityEditor"];
         if(!txt["sceneContentView"].is_null())   sceneContentViewOpen = txt["sceneContentView"];
-        if(!txt["undoHistory"].is_null())        undoHistory = txt["undoHistory"];
+        if(!txt["undoHistory"].is_null())        undoHistoryOpen = txt["undoHistory"];
     }
 }
 
 int main() {
     EditorApp app{};
     loadConfig();
-    int r = app.start("Firesteel 0.2.0.4", loadedW, loadedH, WS_NORMAL);
+    int r = app.start(("Firesteel " + GLOBAL_VER).c_str(), loadedW, loadedH, WS_NORMAL);
     saveConfig();
     return r;
 }
@@ -967,23 +1015,6 @@ void scrollCallback(GLFWwindow* window, double xoffset, double yoffset) {
         camera.fov = 1.0f;
     if (camera.fov > 100.0f)
         camera.fov = 100.0f;
-}
-static const std::string currentDateTime() {
-    struct tm newtime;
-    __time64_t long_time;
-    char timebuf[26];
-    errno_t err;
-
-    // Get time as 64-bit integer.
-    _time64(&long_time);
-    // Convert to local time.
-    err = _localtime64_s(&newtime, &long_time);
-    if(err) {
-        LOG_WARN("Invalid argument to _localtime64_s.");
-        return "invalid";
-    }
-    strftime(timebuf, sizeof(timebuf), "%d.%m.%Y %X", &newtime);
-    return timebuf;
 }
 static void displayLoadingMsg(std::string t_Msg, Shader* t_Shader, Window* t_Window) {
     t_Window->pollEvents();

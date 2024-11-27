@@ -25,11 +25,58 @@ bool Mouse::m_buttons_changed[GLFW_MOUSE_BUTTON_LAST] = { 0 };
 
 #ifdef WIN32
 #include <windows.h>
-void Log::log(const std::string& tMsg, const int t_mod) {
-	SetConsoleTitleA("firesteel Debug Output"); //Set cmd title.
-	HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE);//Get cmd handle.
-	SetConsoleTextAttribute(hConsole, t_mod); //Set cmd text color.
-	printf(tMsg.c_str()); //Print msg.
+#include <fstream>
+#include <sstream>
+#include <iostream>
+#include <filesystem>
+bool inited = false;
+std::ofstream logStream;
+
+static const std::string currentDateTime() {
+	struct tm newtime;
+	__time64_t long_time;
+	char timebuf[26];
+	errno_t err;
+
+	// Get time as 64-bit integer.
+	_time64(&long_time);
+	// Convert to local time.
+	err = _localtime64_s(&newtime, &long_time);
+	if (err) {
+		LOG_WARN("Invalid argument to _localtime64_s.");
+		return "invalid";
+	}
+	strftime(timebuf, sizeof(timebuf), "%X", &newtime);
+	return timebuf;
+}
+
+void Log::logToFile(const char* tMsg, const bool tAddTimestamp) {
+	if (!inited) {
+		if(!std::filesystem::exists("logs/"))
+			std::filesystem::create_directory("logs");
+		logStream.open("logs/latest.log", std::ofstream::out | std::ofstream::trunc);
+		logStream.close();
+		logStream.open("logs/latest.log", std::ios::app);
+		inited = true;
+	}
+	std::ostringstream logEntry;
+	if(tAddTimestamp) logEntry << currentDateTime() + " ";
+	logEntry << tMsg;
+	logStream << logEntry.str();
+	logStream.flush();
+}
+void Log::destroyFileLogger() {
+	logStream.close();
+	inited = false;
+}
+void Log::log(const std::string& tMsg, const int tMod, const bool tAddTimestamp) {
+	logToFile(tMsg.c_str(), tAddTimestamp); // File logging.
+#ifndef NDEBUG
+	SetConsoleTitleA("Firesteel Debug Output"); // Set cmd title.
+	HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE);// Get cmd handle.
+	SetConsoleTextAttribute(hConsole, tMod); // Set cmd text color.
+	printf(tMsg.c_str()); // Print msg.
+#endif // NDEBUG
 }
 void Log::clear() {
 	system("cls");

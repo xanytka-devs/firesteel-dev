@@ -62,6 +62,24 @@ glm::vec3 float3ToVec3(float* tF) {
     return glm::vec3(tF[0], tF[1], tF[2]);
 }
 
+static const std::string currentDateTime() {
+    struct tm newtime;
+    __time64_t long_time;
+    char timebuf[26];
+    errno_t err;
+
+    // Get time as 64-bit integer.
+    _time64(&long_time);
+    // Convert to local time.
+    err = _localtime64_s(&newtime, &long_time);
+    if (err) {
+        LOG_WARN("Invalid argument to _localtime64_s.");
+        return "invalid";
+    }
+    strftime(timebuf, sizeof(timebuf), "%d.%m.%Y %X", &newtime);
+    return timebuf;
+}
+
 #include "UtfConv.hpp"
 std::string StrToLower(std::string tStr) {
     return reinterpret_cast<const char*>(Utf8StrMakeLwrUtf8Str(reinterpret_cast<const unsigned char*>(tStr.c_str())));
