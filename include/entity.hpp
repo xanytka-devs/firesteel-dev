@@ -37,6 +37,7 @@ namespace Firesteel {
         /// Model data.
         std::vector<Texture> texturesLoaded;
         std::vector<Mesh> meshes;
+        std::string path;
         std::string directory;
 
         Entity() { }
@@ -45,7 +46,7 @@ namespace Firesteel {
         Entity(const std::string& tPath,
             glm::vec3 tPos = glm::vec3(0), glm::vec3 tRot = glm::vec3(0), glm::vec3 tSize = glm::vec3(1)) {
             transform = Transform(tPos, tRot, tSize);
-            loadModel(tPath);
+            loadFromFile(tPath);
         }
 
         /// Renders the model.
@@ -66,11 +67,16 @@ namespace Firesteel {
             return modelMatrix;
         }
 
-    private:
-        static glm::mat4 modelMatrix;
+        void clearMeshes() {
+            for (size_t i = 0; i < meshes.size(); i++)
+                meshes[i].remove();
+            meshes.clear();
+            texturesLoaded.clear();
+            directory = "";
+        }
 
         /// Loads a model with ASSIMP.
-        void loadModel(const std::string& tPath) {
+        void loadFromFile(const std::string& tPath) {
             // Read file via ASSIMP.
             Assimp::Importer importer;
             const aiScene* scene = importer.ReadFile(tPath, aiProcess_Triangulate | aiProcess_FlipUVs | aiProcess_CalcTangentSpace);
@@ -80,11 +86,15 @@ namespace Firesteel {
                 return;
             }
             // Retrieve the directory path of the filepath.
-            directory = tPath.substr(0, tPath.find_last_of('/'));
+            path = tPath;
+            directory = path.substr(0, path.find_last_of('\\'));
 
             processNode(scene->mRootNode, scene);
             LOG_INFO("Loaded model at \"" + tPath + "\"")
         }
+
+    private:
+        static glm::mat4 modelMatrix;
 
         /// Processes a node in a recursive fashion.
         void processNode(const aiNode* tNode, const aiScene* tScene) {

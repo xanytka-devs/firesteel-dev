@@ -106,6 +106,18 @@ namespace Firesteel {
             Texture::unbind();
         }
 
+        void remove() {
+            glDeleteBuffers(1, &EBO);
+            glDeleteBuffers(1, &VBO);
+            glDeleteVertexArrays(1, &VAO);
+
+            vertices.clear();
+            indices.clear();
+            for (size_t i = 0; i < textures.size(); i++)
+                textures[i].remove();
+            textures.clear();
+        }
+
     private:
         /// Render data.
         unsigned int VAO, VBO, EBO;

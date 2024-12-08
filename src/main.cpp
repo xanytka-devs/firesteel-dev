@@ -117,9 +117,10 @@ static void CreateScreenShot(unsigned int tWidth, unsigned int tHeight) {
     else if (StrEndsWith(screenShotPath.c_str(), ".jpg")) choosenScreenShotFormat = 2;
     else if (StrEndsWith(screenShotPath.c_str(), ".bmp")) choosenScreenShotFormat = 3;
     else if (StrEndsWith(screenShotPath.c_str(), ".tga")) choosenScreenShotFormat = 4;
+    glReadPixels(0, 0, width, height, GL_RGB, GL_UNSIGNED_BYTE, pixels.data());
+    width += 1;
+    while (pixels.size() > static_cast<size_t>(width * height * 3)) pixels.pop_back();
     if (choosenScreenShotFormat == 0) {
-        glReadPixels(0, 0, width, height, GL_RGB, GL_UNSIGNED_BYTE, pixels.data());
-
         std::ofstream file(screenShotPath, std::ios::binary);
         if (file) {
             file << "P6\n" << width << " " << height << "\n255\n";
@@ -130,37 +131,29 @@ static void CreateScreenShot(unsigned int tWidth, unsigned int tHeight) {
             file.close();
             LOG_INFO("Created a screenshot at: " + screenShotPath);
         }
-        else
-            LOG_ERRR("Couldn't create a screenshot at: " + screenShotPath);
+        else LOG_ERRR("Couldn't create a screenshot at: " + screenShotPath);
     }
     else {
-        glReadPixels(0, 0, width, height, GL_RGB, GL_UNSIGNED_BYTE, pixels.data());
-        width += 1;
-        while (pixels.size() > width * height * 3) pixels.pop_back();
         stbi_flip_vertically_on_write(true);
         if (choosenScreenShotFormat == 1) {
             if (!stbi_write_png(screenShotPath.c_str(), width, height, 3, pixels.data(), 3 * (width))) {
                 LOG_ERRR("Couldn't create a screenshot at: " + screenShotPath);
-            }
-            else LOG_INFO("Created a screenshot at: " + screenShotPath);
+            } else LOG_INFO("Created a screenshot at: " + screenShotPath);
         }
         else if (choosenScreenShotFormat == 2) {
             if (!stbi_write_jpg(screenShotPath.c_str(), width, height, 3, pixels.data(), 100)) {
                 LOG_ERRR("Couldn't create a screenshot at: " + screenShotPath);
-            }
-            else LOG_INFO("Created a screenshot at: " + screenShotPath);
+            } else LOG_INFO("Created a screenshot at: " + screenShotPath);
         }
         else if (choosenScreenShotFormat == 3) {
             if (!stbi_write_bmp(screenShotPath.c_str(), width, height, 3, pixels.data())) {
                 LOG_ERRR("Couldn't create a screenshot at: " + screenShotPath);
-            }
-            else LOG_INFO("Created a screenshot at: " + screenShotPath);
+            } else LOG_INFO("Created a screenshot at: " + screenShotPath);
         }
         else if (choosenScreenShotFormat == 4) {
             if (!stbi_write_tga(screenShotPath.c_str(), width, height, 3, pixels.data())) {
                 LOG_ERRR("Couldn't create a screenshot at: " + screenShotPath);
-            }
-            else LOG_INFO("Created a screenshot at: " + screenShotPath);
+            } else LOG_INFO("Created a screenshot at: " + screenShotPath);
         }
         stbi_flip_vertically_on_write(false);
     }
@@ -310,13 +303,13 @@ class EditorApp : public App {
         //displayLoadingMsg("Loading city", &textShader, &window);
         //Transform city("res/city/scene.gltf");
         displayLoadingMsg("Loading backpack", &textShader, &window);
-        backpack = Entity("res/backpack/backpack.obj", glm::vec3(0.f, 0.f, -1.f), glm::vec3(0), glm::vec3(0.5));
+        backpack = Entity("res\\backpack\\backpack.obj", glm::vec3(0.f, 0.f, -1.f), glm::vec3(0), glm::vec3(0.5));
         displayLoadingMsg("Loading quad", &textShader, &window);
-        quad = Entity("res/primitives/quad.obj");
+        quad = Entity("res\\primitives\\quad.obj");
         displayLoadingMsg("Loading box", &textShader, &window);
-        box = Entity("res/box/box.obj", glm::vec3(-2.f, 0.f, 1.f));
+        box = Entity("res\\box\\box.obj", glm::vec3(-2.f, 0.f, 1.f));
         displayLoadingMsg("Loading phone booth", &textShader, &window);
-        phoneBooth = Entity("res/phone-booth/X.obj", glm::vec3(10.f, 0.f, 10.f), glm::vec3(0), glm::vec3(0.5f));
+        phoneBooth = Entity("res\\phone-booth\\X.obj", glm::vec3(10.f, 0.f, 10.f), glm::vec3(0), glm::vec3(0.5f));
         billTex = Texture{ TextureFromFile("res/yeah.png"), "texture_diffuse", "res/yeah.png" };
         pointLightBillTex = Texture{ TextureFromFile("res/billboards/point_light.png"), "texture_diffuse", "res/billboards/point_light.png" };
         // Cubemap.
@@ -635,7 +628,7 @@ class EditorApp : public App {
                         }
                         if (ImGui::MenuItem(u8"Открыть")) {
                             FileDialog fd;
-                            fd.filter = "All\0*.*\0FSE Project (*.fse)\0*.FSE\0";
+                            fd.filter = "All\0*.*\0FSE Project (*.fse)\0*.fse\0";
                             fd.filter_id = 2;
                             std::string res = fd.open();
                             if (res != "") {
@@ -759,9 +752,53 @@ class EditorApp : public App {
                     if (heldEntity) {
                         ImGui::Text("err:naming_not_implemented");
                         ImGui::Separator();
-                        FSImGui::DragFloat3("Position", &heldEntity->transform.Position);
-                        FSImGui::DragFloat3("Rotation", &heldEntity->transform.Rotation);
-                        FSImGui::DragFloat3("Size", &heldEntity->transform.Size);
+                        FSImGui::DragFloat3(u8"Позиция", &heldEntity->transform.Position);
+                        FSImGui::DragFloat3(u8"Вращение", &heldEntity->transform.Rotation);
+                        FSImGui::DragFloat3(u8"Размер", &heldEntity->transform.Size);
+                        ImGui::BeginDisabled(true);
+                        ImGui::InputText(u8"Модель", &heldEntity->path);
+                        ImGui::EndDisabled();
+                        ImGui::SameLine();
+                        if(ImGui::Button("...")) {
+                            LOG_INFO("Opening dialog for model selection (Entity:\"err:naming_not_implemented\")");
+                            FileDialog fd;
+                            fd.filter = "All\0*.*\0OBJ Model (*.obj)\0*.obj\0FBX Model (*.fbx)\0*.fbx\0GLTF Model (*.gltf)\0*.gltf\0";
+                            fd.filter_id = 2;
+                            std::string modelPath = fd.open();
+                            if (modelPath != "") {
+                                LOG_INFO("Model at \"" + modelPath + "\" does exist. Exchanging...");
+                                heldEntity->clearMeshes();
+                                heldEntity->loadFromFile(modelPath);
+                            }
+                        }
+                        ImGui::Separator();
+                        if (ImGui::CollapsingHeader(u8"Материал")) {
+                            ImGui::Text(u8"Текстуры");
+                            for (size_t i = 0; i < heldEntity->texturesLoaded.size(); i++) {
+                                ImGui::Text((heldEntity->texturesLoaded[i].type + " ##" + std::to_string(i)).c_str());
+                                ImGui::BeginDisabled(true);
+                                ImGui::InputText((u8"Путь##" + std::to_string(i)).c_str(), &heldEntity->texturesLoaded[i].path);
+                                ImGui::EndDisabled();
+                                ImGui::SameLine();
+                                if (ImGui::Button(("...##" + std::to_string(i)).c_str())) {
+                                    LOG_INFO("Opening dialog for texture selection (Entity:\"err:naming_not_implemented\")");
+                                    FileDialog fd;
+                                    fd.filter = "All\0*.*\0PNG Image (*.png)\0*.png\0JPEG Image (*.jpg)\0*.jpg\0";
+                                    fd.filter_id = 2;
+                                    std::string texPath = fd.open();
+                                    if (texPath != "") {
+                                        LOG_INFO("Texture at \"" + texPath + "\" does exist. Exchanging...");
+                                        heldEntity->texturesLoaded[i].remove();
+                                        Texture t;
+                                        t.ID = TextureFromFile(texPath);
+                                        t.type = heldEntity->texturesLoaded[i].type;
+                                        t.path = texPath;
+                                        heldEntity->texturesLoaded[i] = t;
+                                    }
+                                }
+                                ImGui::Image((void*)(size_t)heldEntity->texturesLoaded[i].ID, ImVec2(ImGui::GetContentRegionAvail().x, ImGui::GetContentRegionAvail().x));
+                            }
+                        }
                     }
                     ImGui::End();
                 }
