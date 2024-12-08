@@ -54,9 +54,9 @@ namespace Firesteel {
 			//Disables the byte-alignment restriction so can use 1 byte for each pixel.
 			glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
 			//Load first 128 characters of ASCII set.
-			for (unsigned char c = 0; c < 128; c++) {
+			for (unsigned char c = 1; c < 129; c++) {
 				//Load glyph.
-				if (FT_Load_Char(font, c, FT_LOAD_RENDER)) {
+				if (FT_Load_Char(font, c-1, FT_LOAD_RENDER)) {
 					LOG_ERRR(std::string("Couldn't load glyph #") + (const char *)c + ".");
 					continue;
 				}
@@ -87,7 +87,7 @@ namespace Firesteel {
 					glm::ivec2(font->glyph->bitmap_left, font->glyph->bitmap_top),
 					static_cast<unsigned int>(font->glyph->advance.x)
 				};
-				m_chars.insert(std::pair<char, Character>(c, character));
+				m_chars.insert(std::pair<char, Character>(c-1, character));
 			}
 			//Signal that font was loaded.
 			glBindTexture(GL_TEXTURE_2D, 0);

@@ -32,6 +32,7 @@ namespace Firesteel {
             glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, static_cast<int>(tContextMajor));
             glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, static_cast<int>(tContextMinor));
             glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+            glfwWindowHint(GLFW_AUTO_ICONIFY, GLFW_FALSE);
             if(tState==WS_BORDERLESS) glfwWindowHint(GLFW_DECORATED, GLFW_FALSE);
             else glfwWindowHint(GLFW_DECORATED, GLFW_TRUE);
             glfwSetErrorCallback(errorCallback);
@@ -75,7 +76,8 @@ namespace Firesteel {
             glfwPollEvents();
         }
         void clearBuffers() const {
-            glClearColor(mClearColor[0], mClearColor[1], mClearColor[2], 1.0f);
+            glClearColor(static_cast<GLfloat>(mClearColor[0]), static_cast<GLfloat>(mClearColor[1]),
+                static_cast<GLfloat>(mClearColor[2]), static_cast<GLfloat>(1.0f));
             glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
         }
         void close() {

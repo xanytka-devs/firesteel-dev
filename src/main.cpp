@@ -21,6 +21,16 @@ using namespace Firesteel;
 #include <thread>
 #include "../include/utils/json.hpp"
 #include "../include/editor/undo_buffer.hpp"
+#define __STDC_LIB_EXT1__
+#define STB_IMAGE_WRITE_IMPLEMENTATION
+#include "../include/utils/stb_image_write.hpp"
+
+extern "C" {
+# include "../external/lua/include/lua.h"
+# include "../external/lua/include/lauxlib.h"
+# include "../external/lua/include/lualib.h"
+}
+#include <../external/lua/LuaBridge/LuaBridge/LuaBridge.h>
 
 #pragma region Defines
 Camera camera(glm::vec3(0.0f, 0.0f, 3.0f), glm::vec3(0, 0, -90));
@@ -38,8 +48,6 @@ bool drawImGUI = true;
 void processInput(Window* tWin, GLFWwindow* tPtr, float tDeltaTime);
 void mouseCallback(GLFWwindow* window, double xposIn, double yposIn);
 void scrollCallback(GLFWwindow* window, double xoffset, double yoffset);
-/// Get current date/time, format is YYYY-MM-DD HH:mm:ss
-static const std::string currentDateTime();
 Text t;
 static void displayLoadingMsg(std::string t_Msg, Shader* t_Shader, Window* t_Window);
 static std::string getDrawModName();
@@ -62,8 +70,12 @@ bool sceneContentViewOpen = true;
 bool undoHistoryOpen = false;
 bool consoleOpen = false;
 bool consoleDevMode = false;
+bool switchedToDevConsole = false;
 std::string consoleInput;
 std::string consoleLog;
+bool backupLogs = false;
+
+bool didSaveCurPrj = true;
 
 bool overrideAspect = false;
 float clipSpace = 1.0f;
@@ -76,6 +88,8 @@ glm::vec2 sceneWinSize = glm::vec2(loadedW,loadedH);
 const std::string GLOBAL_VER = "0.2.0.4";
 
 Entity* heldEntity;
+ImGuizmo::MODE currentGizmoMode = ImGuizmo::LOCAL;
+ImGuizmo::OPERATION currentGizmoOperation = ImGuizmo::TRANSLATE;
 
 const char* acts[4] = {
     u8"Перемещение объекта 'Тест'",
@@ -83,6 +97,80 @@ const char* acts[4] = {
     u8"Объект 'Тест' переименов в 'Хрю'",
     u8"Обьект 'Хрю' был удалён"
 };
+
+bool needToScreenShot = false;
+bool needToScreenShotEditor = false;
+bool needToScreenShotEditorWaitFrame = true;
+std::string screenShotPath = "";
+int choosenScreenShotFormat = 0;
+static void CreateScreenShot(unsigned int tWidth, unsigned int tHeight) {
+    unsigned int width = tWidth;
+    unsigned int height = tHeight;
+    unsigned int bytesPerPixel = 4;
+    std::vector<unsigned char> pixels(width * height * bytesPerPixel);
+    if (pixels.empty()) {
+        LOG_ERRR("Couldn't allocate buffer for screenshot");
+        return;
+    }
+    if (StrEndsWith(screenShotPath.c_str(), ".ppm")) choosenScreenShotFormat = 0;
+    else if (StrEndsWith(screenShotPath.c_str(), ".png")) choosenScreenShotFormat = 1;
+    else if (StrEndsWith(screenShotPath.c_str(), ".jpg")) choosenScreenShotFormat = 2;
+    else if (StrEndsWith(screenShotPath.c_str(), ".bmp")) choosenScreenShotFormat = 3;
+    else if (StrEndsWith(screenShotPath.c_str(), ".tga")) choosenScreenShotFormat = 4;
+    if (choosenScreenShotFormat == 0) {
+        glReadPixels(0, 0, width, height, GL_RGB, GL_UNSIGNED_BYTE, pixels.data());
+
+        std::ofstream file(screenShotPath, std::ios::binary);
+        if (file) {
+            file << "P6\n" << width << " " << height << "\n255\n";
+            for (int y = height - 1; y >= 0; --y) {
+                file.write(reinterpret_cast<char*>(&pixels[y * static_cast<std::vector<uint8_t, std::allocator<uint8_t>>::size_type>(width) * 3]),
+                    static_cast<std::streamsize>(width) * 3);
+            }
+            file.close();
+            LOG_INFO("Created a screenshot at: " + screenShotPath);
+        }
+        else
+            LOG_ERRR("Couldn't create a screenshot at: " + screenShotPath);
+    }
+    else {
+        glReadPixels(0, 0, width, height, GL_RGB, GL_UNSIGNED_BYTE, pixels.data());
+        stbi_flip_vertically_on_write(true);
+        if (choosenScreenShotFormat == 1) {
+            if (!stbi_write_png(screenShotPath.c_str(), width, height, 3, pixels.data(), 3 * width)) {
+                LOG_ERRR("Couldn't create a screenshot at: " + screenShotPath);
+            }
+            else LOG_INFO("Created a screenshot at: " + screenShotPath);
+        }
+        else if (choosenScreenShotFormat == 2) {
+            if (!stbi_write_jpg(screenShotPath.c_str(), width, height, 3, pixels.data(), 100)) {
+                LOG_ERRR("Couldn't create a screenshot at: " + screenShotPath);
+            }
+            else LOG_INFO("Created a screenshot at: " + screenShotPath);
+        }
+        else if (choosenScreenShotFormat == 3) {
+            if (!stbi_write_bmp(screenShotPath.c_str(), width, height, 3, pixels.data())) {
+                LOG_ERRR("Couldn't create a screenshot at: " + screenShotPath);
+            }
+            else LOG_INFO("Created a screenshot at: " + screenShotPath);
+        }
+        else if (choosenScreenShotFormat == 4) {
+            if (!stbi_write_tga(screenShotPath.c_str(), width, height, 3, pixels.data())) {
+                LOG_ERRR("Couldn't create a screenshot at: " + screenShotPath);
+            }
+            else LOG_INFO("Created a screenshot at: " + screenShotPath);
+        }
+        stbi_flip_vertically_on_write(false);
+    }
+}
+static bool AskForScreenShot() {
+    FileDialog fd;
+    fd.filter = "All\0*.*\0PNG Image (*.png)\0*.png\0JPEG Image (*.jpg)\0*.jpg\0Portable Pixelmap (*.ppm)\0*.ppm\
+\0Bitmap Picture (*.bmp)\0*.bmp\0TARGA Image (*.tga)\0*.tga\0";
+    fd.filter_id = 2;
+    screenShotPath = fd.save();
+    return screenShotPath != "";
+}
 #pragma endregion
 
 #pragma region Timers
@@ -184,6 +272,7 @@ class EditorApp : public App {
     FSOAL::AudioLayer alBG{};
     std::string newsTxtLoaded = "";
     ActionRegistry actions;
+    lua_State* L = nullptr;
     virtual void onInitialize() override {
         window.setIcon("app.png");
         window.setClearColor(glm::vec3(0.0055f, 0.002f, 0.f));
@@ -210,7 +299,6 @@ class EditorApp : public App {
         particlesShader = Shader("res/particles.vs", "res/particles.fs");
         skyShader = Shader("res/skybox.vs", "res/skybox.fs");
         modelShader.enable();
-        modelShader.setFloat("material.emissionFactor", 1);
         modelShader.setFloat("material.shininess", 64);
         modelShader.setFloat("material.skyboxRefraction", 1.00f / 1.52f);
         modelShader.setFloat("material.skyboxRefractionStrength", 0.025f);
@@ -250,17 +338,109 @@ class EditorApp : public App {
         FSImGui::MD::LoadFonts("res/fonts/Ubuntu-Regular.ttf", "res/fonts/Ubuntu-Bold.ttf", 14, 15.4f);
         LOG_INFO("ImGui ready");
         newsTxtLoaded = StrFromFile("News.md");
+        //LuaBridge.
+        displayLoadingMsg("Initializing Lua", &textShader, &window);
+        using namespace luabridge;
+        L = luaL_newstate();
+        luaL_openlibs(L);
+        lua_pcall(L, 0, 0, 0);
+
+        size_t cmd_v[] = {
+            CMD_F_BLACK     ,
+            CMD_F_BLUE      ,
+            CMD_F_GREEN     ,
+            CMD_F_CYAN      ,
+            CMD_F_RED       ,
+            CMD_F_PURPLE    ,
+            CMD_F_YELLOW    ,
+            CMD_F_GRAY      ,
+            CMD_F_LBLACK    ,
+            CMD_F_LBLUE     ,
+            CMD_F_LGREEN    ,
+            CMD_F_LCYAN     ,
+            CMD_F_LRED      ,
+            CMD_F_LPURPLE   ,
+            CMD_F_LYELLOW   ,
+            CMD_F_WHITE     ,
+
+            CMD_BG_BLACK    ,
+            CMD_BG_BLUE     ,
+            CMD_BG_GREEN    ,
+            CMD_BG_CYAN     ,
+            CMD_BG_RED      ,
+            CMD_BG_PURPLE   ,
+            CMD_BG_YELLOW   ,
+            CMD_BG_GRAY     ,
+            CMD_BG_LBLACK   ,
+            CMD_BG_LBLUE    ,
+            CMD_BG_LGREEN   ,
+            CMD_BG_LCYAN    ,
+            CMD_BG_LRED     ,
+            CMD_BG_LPURPLE  ,
+            CMD_BG_LYELLOW  ,
+            CMD_BG_WHITE
+        };
+
+        getGlobalNamespace(L)
+        .beginNamespace("firesteel")
+            .addConstant("version", GLOBAL_VER.c_str())
+            .beginNamespace("log")
+                .beginNamespace("f_color")
+                    .addConstant("black"  , &cmd_v[0])
+                    .addConstant("blue"   , &cmd_v[1])
+                    .addConstant("green"  , &cmd_v[2])
+                    .addConstant("cyan"   , &cmd_v[3])
+                    .addConstant("red"    , &cmd_v[4])
+                    .addConstant("purple" , &cmd_v[5])
+                    .addConstant("yellow" , &cmd_v[6])
+                    .addConstant("gray"   , &cmd_v[7])
+                    .addConstant("lblack" , &cmd_v[8])
+                    .addConstant("lblue"  , &cmd_v[9])
+                    .addConstant("lgreen" , &cmd_v[10])
+                    .addConstant("lcyan"  , &cmd_v[11])
+                    .addConstant("lred"   , &cmd_v[12])
+                    .addConstant("lpurple", &cmd_v[13])
+                    .addConstant("lyellow", &cmd_v[14])
+                    .addConstant("white"  , &cmd_v[15])
+                .endNamespace()
+                .beginNamespace("b_color")
+                    .addConstant("black"  , &cmd_v[16])
+                    .addConstant("blue"   , &cmd_v[17])
+                    .addConstant("green"  , &cmd_v[18])
+                    .addConstant("cyan"   , &cmd_v[19])
+                    .addConstant("red"    , &cmd_v[20])
+                    .addConstant("purple" , &cmd_v[21])
+                    .addConstant("yellow" , &cmd_v[22])
+                    .addConstant("gray"   , &cmd_v[23])
+                    .addConstant("lblack" , &cmd_v[23])
+                    .addConstant("lblue"  , &cmd_v[24])
+                    .addConstant("lgreen" , &cmd_v[25])
+                    .addConstant("lcyan"  , &cmd_v[26])
+                    .addConstant("lred"   , &cmd_v[27])
+                    .addConstant("lpurple", &cmd_v[28])
+                    .addConstant("lyellow", &cmd_v[29])
+                    .addConstant("white"  , &cmd_v[30])
+                .endNamespace()
+                .addFunction("info", Log::log_info)
+                .addFunction("warn", Log::log_warn)
+                .addFunction("error", Log::log_error)
+                .addFunction("crit", Log::log_critical)
+                .addFunction("custom", Log::log_c)
+            .endNamespace()
+        .endNamespace();
+
+        luaL_dofile(L, "res/oninit.lua");
         //OpenAL.
         phoneAmbience.init("res/audio/tone.wav", 0.1f, true)->setPostion(10.f, 0.f, 10.f)->play();
         audio.init("res/audio/harbour-port-ambience.wav", 0.2f, true)->play();
         window.setTitle(std::filesystem::current_path().u8string() + " | Firesteel " + GLOBAL_VER);
     }
     virtual void onUpdate() override {
-        if (!drawImGUI)
-            if (ppFBO.getSize() != window.getSize()) {
+        if (!drawImGUI) if (ppFBO.getSize() != window.getSize()) {
                 ppFBO.scale(window.getSize());
                 camera.aspect = ppFBO.aspect();
             }
+        glViewport(0, 0, static_cast<GLsizei>(ppFBO.getWidth()), static_cast<GLsizei>(ppFBO.getHeight()));
         std::thread GPUThreadT(_gpuThreadTimer);
         /* Input processing */ {
             processInput(&window, window.ptr(), deltaTime);
@@ -287,19 +467,30 @@ class EditorApp : public App {
         glm::mat4 view = camera.getView();
         glm::mat4 model = glm::mat4(1.0f);
         std::thread DrawThreadT(_drawThreadTimer);
+        /* Skybox */ {
+            skyShader.enable();
+            skyShader.setInt("DrawMode", drawMode);
+            skyShader.setMat4("projection", projection);
+            skyShader.setMat4("view", view);
+            sky.draw(&skyShader);
+        }
         /* Render backpack */ {
+            modelShader.enable();
             modelShader.setMat4("projection", projection);
             modelShader.setMat4("view", view);
             modelShader.setVec3("viewPos", camera.pos);
-            modelShader.setVec3("material.emissionColor", glm::vec3(0));
+            modelShader.setFloat("material.emissionFactor", 0);
             //city.draw(modelShader);
             backpack.draw(&modelShader);
         }
         /* Render phone booth */ {
+            modelShader.setFloat("material.emissionFactor", 5);
+            modelShader.setVec3("material.emissionColor", glm::vec3(1));
             phoneBooth.draw(&modelShader);
         }
         /* Render box */ {
             box.transform.Rotation = glm::vec3((float)glfwGetTime() * -10.0f);
+            modelShader.setFloat("material.emissionFactor", 1);
             modelShader.setVec3("material.emissionColor", glm::vec3(0.0f, 0.5f, 0.69f));
             box.draw(&modelShader);
         }
@@ -339,13 +530,6 @@ class EditorApp : public App {
                 glDepthFunc(GL_LESS);
             }
         }
-        /* Skybox */ {
-            skyShader.enable();
-            skyShader.setInt("DrawMode", drawMode);
-            skyShader.setMat4("projection", projection);
-            skyShader.setMat4("view", view);
-            sky.draw(&skyShader);
-        }
         /* Draw FBO */ {
             ppFBO.unbind();
             glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
@@ -363,6 +547,13 @@ class EditorApp : public App {
             if (drawImGUI) imguiFBO.bind();
             window.clearBuffers();
             ppFBO.drawQuad(&fboShader);
+            /* Screenshot */ {
+                if (needToScreenShot) {
+                    CreateScreenShot(static_cast<unsigned int>(ppFBO.getSize().x),
+                        static_cast<unsigned int>(ppFBO.getSize().y));
+                    needToScreenShot = false;
+                }
+            }
             if (drawImGUI) {
                 imguiFBO.unbind();
                 window.clearBuffers();
@@ -372,36 +563,37 @@ class EditorApp : public App {
         DrawThreadT.join();
         /* Draw UI */ {
             if (drawNativeUI) {
-                t.draw(&textShader, std::to_string(fps), window.getSize(), glm::vec2(8.0f, 568.0f), glm::vec2(1.5f), glm::vec3(0));
-                t.draw(&textShader, std::to_string(fps), window.getSize(), glm::vec2(10.0f, 570.0f), glm::vec2(1.5f), glm::vec3(1, 0, 0));
+                t.draw(&textShader, std::to_string(fps), ppFBO.getSize(), glm::vec2(8.0f, 568.0f), glm::vec2(1.5f), glm::vec3(0));
+                t.draw(&textShader, std::to_string(fps), ppFBO.getSize(), glm::vec2(10.0f, 570.0f), glm::vec2(1.5f), glm::vec3(1, 0, 0));
 
-                t.draw(&textShader, currentDateTime(), window.getSize(), glm::vec2(8.0f, 553.0f), glm::vec2(1.f), glm::vec3(0));
-                t.draw(&textShader, currentDateTime(), window.getSize(), glm::vec2(10.0f, 555.0f), glm::vec2(1.f), glm::vec3(1, 0, 0));
+                t.draw(&textShader, currentDateTime(), ppFBO.getSize(), glm::vec2(8.0f, 553.0f), glm::vec2(1.f), glm::vec3(0));
+                t.draw(&textShader, currentDateTime(), ppFBO.getSize(), glm::vec2(10.0f, 555.0f), glm::vec2(1.f), glm::vec3(1, 0, 0));
 
                 t.draw(&textShader, std::string("[V] VSync: ") + (window.getVSync() ? "ON" : "OFF"),
-                    window.getSize(), glm::vec2(8.0f, 538.0f), glm::vec2(1.f), glm::vec3(0));
+                    ppFBO.getSize(), glm::vec2(8.0f, 538.0f), glm::vec2(1.f), glm::vec3(0));
                 t.draw(&textShader, std::string("[V] VSync: ") + (window.getVSync() ? "ON" : "OFF"),
-                    window.getSize(), glm::vec2(10.0f, 540.0f), glm::vec2(1.f), glm::vec3(1, 0, 0));
+                    ppFBO.getSize(), glm::vec2(10.0f, 540.0f), glm::vec2(1.f), glm::vec3(1, 0, 0));
 
                 t.draw(&textShader, "[Wheel] FOV: " + std::to_string((int)camera.fov),
-                    window.getSize(), glm::vec2(8.0f, 523.0f), glm::vec2(1.f), glm::vec3(0));
+                    ppFBO.getSize(), glm::vec2(8.0f, 523.0f), glm::vec2(1.f), glm::vec3(0));
                 t.draw(&textShader, "[Wheel] FOV: " + std::to_string((int)camera.fov),
-                    window.getSize(), glm::vec2(10.0f, 525.0f), glm::vec2(1.f), glm::vec3(1, 0, 0));
+                    ppFBO.getSize(), glm::vec2(10.0f, 525.0f), glm::vec2(1.f), glm::vec3(1, 0, 0));
 
                 if (drawSelectMod == 0) {
                     t.draw(&textShader, "[1-0] Shading: " + getDrawModName(),
-                        window.getSize(), glm::vec2(8.0f, 508.0f), glm::vec2(1.f), glm::vec3(0));
+                        ppFBO.getSize(), glm::vec2(8.0f, 508.0f), glm::vec2(1.f), glm::vec3(0));
                     t.draw(&textShader, "[1-0] Shading: " + getDrawModName(),
-                        window.getSize(), glm::vec2(10.0f, 510.0f), glm::vec2(1.f), glm::vec3(1, 0, 0));
+                        ppFBO.getSize(), glm::vec2(10.0f, 510.0f), glm::vec2(1.f), glm::vec3(1, 0, 0));
                 }
                 else {
                     t.draw(&textShader, "[1-4] Lighting: " + getLightingTypeName(),
-                        window.getSize(), glm::vec2(8.0f, 508.0f), glm::vec2(1.f), glm::vec3(0));
+                        ppFBO.getSize(), glm::vec2(8.0f, 508.0f), glm::vec2(1.f), glm::vec3(0));
                     t.draw(&textShader, "[1-4] Lighting: " + getLightingTypeName(),
-                        window.getSize(), glm::vec2(10.0f, 510.0f), glm::vec2(1.f), glm::vec3(1, 0, 0));
+                        ppFBO.getSize(), glm::vec2(10.0f, 510.0f), glm::vec2(1.f), glm::vec3(1, 0, 0));
                 }
             }
         }
+        unsigned int imguiW=0, imguiH=0;
         /* Draw ImGui */ {
             if (drawImGUI) {
                 std::thread ImGuiThreadT(_imguiThreadTimer);
@@ -412,35 +604,41 @@ class EditorApp : public App {
                 //Do fullscreen.
                 ImGui::PopStyleVar(3);
                 ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
-                ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
                 ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
+                ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
                 const ImGuiViewport* viewport = ImGui::GetMainViewport();
                 ImGui::SetNextWindowPos(viewport->WorkPos);
                 ImGui::SetNextWindowSize(viewport->WorkSize);
                 ImGui::SetNextWindowViewport(viewport->ID);
-                ImGuiID dockspace_id = ImGui::GetID("Firesteel Dev Editor");
-                ImGui::Begin("Firesteel Dev Editor", NULL, FSImGui::defaultDockspaceWindowFlags);
+                ImGuiID dockspace_id = ImGui::GetID("Firesteel Editor");
+                ImGui::Begin("Firesteel Editor", NULL, FSImGui::defaultDockspaceWindowFlags);
                 ImGui::DockSpace(dockspace_id, ImVec2(0.0f, 0.0f), FSImGui::defaultDockspaceFlags);
+                imguiW = static_cast<unsigned int>(ImGui::GetWindowViewport()->Size.x - 1);
+                imguiH = static_cast<unsigned int>(ImGui::GetWindowViewport()->Size.y);
                 // Upper help menu.
+                ImGui::PopStyleVar(1);
+                ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(5.0f, 5.0f));
                 if (ImGui::BeginMenuBar()) {
                     if (ImGui::BeginMenu(u8"Файл")) {
                         if (ImGui::MenuItem(u8"Сохранить")) {
                             FileDialog fd;
-                            fd.filter = "All\0*.*\0HTML Document (*.html)\0*.HTML\0";
+                            fd.filter = "All\0*.*\0FSE Project (*.fse)\0*.fse\0";
                             fd.filter_id = 2;
                             std::string res = fd.save();
                             if (res != "") {
-                                if (!StrEndsWith(StrToLower(res).c_str(), ".html")) res.append(".html");
                                 StrToFile(res, "Still WIP.");
+                                LOG_INFO("Saved project to \"" + res + "\".");
+                                didSaveCurPrj = true;
                             }
                         }
                         if (ImGui::MenuItem(u8"Открыть")) {
                             FileDialog fd;
-                            fd.filter = "All\0*.*\0HTML Document (*.html)\0*.HTML\0";
+                            fd.filter = "All\0*.*\0FSE Project (*.fse)\0*.FSE\0";
                             fd.filter_id = 2;
                             std::string res = fd.open();
                             if (res != "") {
-                                openURL("https://www.youtube.com/watch?v=dQw4w9WgXcQ");
+                                LOG_INFO("Opened project to \"" + res + "\".");
+                                didSaveCurPrj = true;
                             }
                         }
                         ImGui::Separator();
@@ -458,10 +656,19 @@ class EditorApp : public App {
                         ImGui::Checkbox(u8"Содержимое сцены", &sceneContentViewOpen);
                         ImGui::Checkbox(u8"Редактор объектов", &entityEditorOpen);
                         ImGui::Separator();
+                        if (ImGui::MenuItem(u8"Скриншот")) needToScreenShot = AskForScreenShot();
+                        if (ImGui::MenuItem(u8"Скриншот Редактора")) needToScreenShotEditor = AskForScreenShot();
                         if (ImGui::MenuItem(u8"Сбросить")) {
                             texViewOpen = false;
                             newsViewOpen = true;
                         }
+                        ImGui::EndMenu();
+                    }
+                    if (ImGui::BeginMenu(u8"Помощь")) {
+                        if (ImGui::MenuItem(u8"Сайт Xanytka Devs")) openURL("http://devs.xanytka.ru/");
+                        if (ImGui::MenuItem(u8"Вики FS Editor")) openURL("http://devs.xanytka.ru/wiki/fse");
+                        ImGui::Separator();
+                        if (ImGui::MenuItem(u8"Сообщить о проблеме")) openURL("https://forms.yandex.ru/u/6751fe9bd04688cc151223e8/");
                         ImGui::EndMenu();
                     }
                     if (ImGui::BeginMenu(u8"Тестирование")) {
@@ -472,19 +679,18 @@ class EditorApp : public App {
                         }
                         ImGui::Separator();
                         ImGui::Checkbox(u8"Просмотр текстур", &texViewOpen);
-                        ImGui::Checkbox(u8"Потоки", &threadsOpen);
+                        ImGui::Checkbox(u8"Статистика потоков", &threadsOpen);
                         ImGui::Checkbox(u8"Консоль разработчика", &consoleDevMode);
+                        ImGui::Checkbox(u8"Создавать бэкапы логов", &backupLogs);
                         ImGui::EndMenu();
                     }
                     if (ImGui::Button("Guizmo")) displayGizmos = !displayGizmos;
+                    if (currentGizmoMode == ImGuizmo::LOCAL ? ImGui::Button("L") : ImGui::Button("W"))
+                        currentGizmoMode == ImGuizmo::LOCAL ? currentGizmoMode = ImGuizmo::WORLD : currentGizmoMode = ImGuizmo::LOCAL;
                     ImGui::EndMenuBar();
                 }
                 ImGui::End();
 
-                ImGui::PopStyleVar(3);
-                ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
-                ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
-                ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 3.0f);
 
                 if (newsViewOpen) {
                     ImGui::Begin("News", &newsViewOpen);
@@ -492,16 +698,21 @@ class EditorApp : public App {
                     ImGui::End();
                 }
                 if (sceneViewOpen) {
+                    ImGui::PopStyleVar(3);
+                    ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
+                    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
+                    ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 3.0f);
+
                     ImGui::Begin("Scene", &sceneViewOpen, ImGuiDockNodeFlags_NoTabBar);
                     ImVec2 winSceneSize = ImGui::GetWindowSize();
-                    winSceneSize.y -= 20;
-                    ImGui::Image((void*)imguiFBO.getID(), winSceneSize, ImVec2(0, 1), ImVec2(1, 0));
                     glm::vec2 winSize = glm::vec2(winSceneSize.x, winSceneSize.y);
                     if (imguiFBO.getSize() != winSize) {
-                        ppFBO.scale(static_cast<int>(winSize.x), static_cast<int>(winSize.y));
-                        imguiFBO.scale(static_cast<int>(winSize.x), static_cast<int>(winSize.y));
+                        ppFBO.scale(static_cast<int>(winSceneSize.x), static_cast<int>(winSceneSize.y));
+                        imguiFBO.scale(static_cast<int>(winSceneSize.x), static_cast<int>(winSceneSize.y));
                         camera.aspect = ppFBO.aspect();
                     }
+                    winSceneSize.y -= 20;
+                    ImGui::Image((void*)(size_t)imguiFBO.getID(), winSceneSize, ImVec2(0, 1), ImVec2(1, 0));
 
                     ImGui::PopStyleVar(3);
                     ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 1.0f);
@@ -520,20 +731,12 @@ class EditorApp : public App {
                             ImGuizmo::AllowAxisFlip(false);
                             ImGuizmo::SetDrawlist();
                             // ImGuizmo::SetRect(windowPos.x, windowPos.y, windowSize.x, windowSize.y);
-                            glm::vec4 vp = glm::vec4(ImGui::GetWindowPos().x, ImGui::GetWindowPos().y,
-                                ppFBO.getSize().x, ppFBO.getSize().y);
-                            ImGuizmo::SetRect(vp.x, vp.y, vp.z, vp.w);
-                            // ImGuizmo::GetStyle().CenterCircleSize = 3.0f;
-
-                            static ImGuizmo::OPERATION currentGizmoOperation = ImGuizmo::TRANSLATE;
-                            if (ImGui::IsKeyPressed(ImGuiKey_E)) currentGizmoOperation = ImGuizmo::TRANSLATE;
-                            if (ImGui::IsKeyPressed(ImGuiKey_R)) currentGizmoOperation = ImGuizmo::ROTATE;
-                            if (ImGui::IsKeyPressed(ImGuiKey_T)) currentGizmoOperation = ImGuizmo::SCALE;
-
-                            // Define the mode (local or world space)
-                            static ImGuizmo::MODE currentGizmoMode = ImGuizmo::LOCAL;
-                            if (ImGui::IsKeyPressed(ImGuiKey_L)) currentGizmoMode = ImGuizmo::LOCAL;
-                            if (ImGui::IsKeyPressed(ImGuiKey_K)) currentGizmoMode = ImGuizmo::WORLD;
+                            ImGuizmo::SetRect(
+                                ImGui::GetWindowPos().x,
+                                ImGui::GetWindowPos().y,
+                                imguiFBO.getSize().x,
+                                imguiFBO.getSize().y
+                            );
 
                             // Manipulate the model matrix
                             ImGuizmo::Manipulate(glm::value_ptr(view), glm::value_ptr(projection),
@@ -716,7 +919,7 @@ class EditorApp : public App {
                         if (glIsTexture(i) == GL_FALSE) continue;
                         glBindTexture(GL_TEXTURE_2D, i);
                         ImGui::BeginGroup();
-                        ImGui::Image((void*)i, ImVec2(100, 100));
+                        ImGui::Image((void*)(size_t)i, ImVec2(100, 100));
                         if (ImGui::Button(std::to_string(i).c_str())) {
                             texID = i;
                             fullTexViewOpen = true;
@@ -734,14 +937,19 @@ class EditorApp : public App {
                     ImGui::Begin("Full Texture Viewer", &fullTexViewOpen);
                     glActiveTexture(GL_TEXTURE10);
                     glBindTexture(GL_TEXTURE_2D, texID);
-                    ImGui::Image((void*)texID, ImVec2(ImGui::GetWindowWidth() * 0.9f, ImGui::GetWindowHeight() * 0.9f));
+                    ImGui::Image((void*)(size_t)texID, ImVec2(ImGui::GetWindowWidth() * 0.9f, ImGui::GetWindowHeight() * 0.9f));
                     glBindTexture(GL_TEXTURE_2D, 0);
                     glActiveTexture(GL_TEXTURE0);
                     ImGui::End();
                 }
                 if (consoleOpen) {
                     ImGui::Begin("Console", &consoleOpen);
-                    if(consoleDevMode) {
+                    if (consoleDevMode) {
+                        if (ImGui::Button(u8"Ошибки")) switchedToDevConsole = false;
+                        ImGui::SameLine();
+                        if (ImGui::Button(u8"Консоль")) switchedToDevConsole = true;
+                    } else switchedToDevConsole = false;
+                    if(consoleDevMode && switchedToDevConsole) {
                         ImGui::Text(consoleLog.c_str());
                         ImGuiInputTextFlags inputTextFlags =
                             ImGuiInputTextFlags_CallbackHistory | ImGuiInputTextFlags_CallbackCharFilter |
@@ -750,18 +958,31 @@ class EditorApp : public App {
                         if(ImGui::InputText("##dev_input", &consoleInput, inputTextFlags, nullptr, this)) {
                             LOG_INFO("Executed cmd '" + consoleInput + "'");
                             consoleLog += "> " + consoleInput + "\n";
-                            if(consoleInput == "help") {
-                                const char* hlpstr = "- help\n All available commands.\n\
-\n- exit\n Exits out of the app.\n\n- amogus\n Don't you dare.\n";
+                            std::vector<std::string> consoleInputs = StrSplit(consoleInput, ' ');
+                            if(consoleInputs[0] == "help") {
+                                const char* hlpstr = "\
+- help\n All available commands.\n\n\
+- lua\n Execute following Lua code (output to CMD, not this console).\n\n\
+- luaF\n Execute Lua code from following file (output to CMD, not this console).\n\n\
+- exit\n Exits out of the app.\n\n\
+- amogus\n Don't you dare.\n";
                                 consoleLog += hlpstr;
                                 LOG(hlpstr);
-                            } else if (consoleInput == "exit") {
+                            } else if (consoleInputs[0] == "exit") {
                                 window.close();
-                            } else if (consoleInput == "amogus") {
+                            } else if (consoleInputs[0] == "amogus") {
                                 const char* amstr = " Bruh, this was obvious.\n";
                                 consoleLog += amstr;
                                 openURL("https://www.youtube.com/watch?v=dQw4w9WgXcQ");
                                 LOG(amstr);
+                            } else if (consoleInputs[0] == "lua") {
+                                std::string code;
+                                for (size_t i = 1; i < consoleInputs.size(); i++) code += consoleInputs[i] + " ";
+                                luaL_dostring(L, code.c_str());
+                            } else if (consoleInputs[0] == "luaF") {
+                                std::string path;
+                                for (size_t i = 1; i < consoleInputs.size(); i++) path += consoleInputs[i] + " ";
+                                luaL_dofile(L, path.c_str());
                             } else {
                                 const char* invstr = " Invalid command.\n";
                                 consoleLog += invstr;
@@ -770,6 +991,8 @@ class EditorApp : public App {
                             consoleInput.clear();
                         }
                         ImGui::PopItemWidth();
+                    } else {
+                        ImGui::Text(u8"Нет ошибок");
                     }
                     ImGui::End();
                 }
@@ -798,6 +1021,15 @@ class EditorApp : public App {
                 threadRuntime[0] = false;
                 GPUThreadT.join();
             }
+            /* Screenshot */ {
+                if (needToScreenShotEditor) {
+                    if (needToScreenShotEditorWaitFrame) needToScreenShotEditorWaitFrame = false;
+                    else {
+                        CreateScreenShot(imguiW, imguiH);
+                        needToScreenShotEditor = false;
+                    }
+                }
+            }
         }
     }
     virtual void onShutdown() override {
@@ -821,6 +1053,7 @@ static void saveConfig() {
     txt["window"]["height"] = loadedH;
 
     txt["dev"]["consoleDevMode"] = consoleDevMode;
+    txt["dev"]["backupLogs"] = backupLogs;
 
     txt["layout"]["console"] = consoleOpen;
     txt["layout"]["soundMixer"] = soundMixerOpen;
@@ -848,7 +1081,8 @@ static void loadConfig() {
         loadedH = txt["window"]["height"];
     }
     if(!txt["dev"].is_null()) {
-        consoleDevMode = txt["dev"]["consoleDevMode"];
+        if(!txt["dev"]["consoleDevMode"].is_null()) consoleDevMode = txt["dev"]["consoleDevMode"];
+        if(!txt["dev"]["backupLogs"].is_null())     backupLogs = txt["dev"]["backupLogs"];
     }
     if(!txt["layout"].is_null()) {
         txt = txt.at("layout");
@@ -868,6 +1102,8 @@ int main() {
     EditorApp app{};
     loadConfig();
     int r = app.start(("Firesteel " + GLOBAL_VER).c_str(), loadedW, loadedH, WS_NORMAL);
+    LOG_INFO("Shutting down Firesteel App.");
+    if(backupLogs) Log::destroyFileLogger();
     saveConfig();
     return r;
 }
@@ -917,6 +1153,14 @@ float speed_mult = 2.f;
 void processInput(Window* tWin, GLFWwindow* tPtr, float tDeltaTime) {
     if (glfwGetKey(tPtr, GLFW_KEY_ESCAPE) == GLFW_PRESS)
         tWin->close();
+
+    if (glfwGetKey(tPtr, GLFW_KEY_E) == GLFW_PRESS) currentGizmoOperation = ImGuizmo::TRANSLATE;
+    if (glfwGetKey(tPtr, GLFW_KEY_R) == GLFW_PRESS) currentGizmoOperation = ImGuizmo::ROTATE;
+    if (glfwGetKey(tPtr, GLFW_KEY_T) == GLFW_PRESS) currentGizmoOperation = ImGuizmo::SCALE;
+
+    if (glfwGetKey(tPtr, GLFW_KEY_L) == GLFW_PRESS) currentGizmoMode = ImGuizmo::LOCAL;
+    if (glfwGetKey(tPtr, GLFW_KEY_K) == GLFW_PRESS) currentGizmoMode = ImGuizmo::WORLD;
+
     if (glfwGetMouseButton(tPtr, 1) != GLFW_PRESS) return;
 
     float velocity = 2.5f * tDeltaTime;

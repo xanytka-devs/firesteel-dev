@@ -5,6 +5,16 @@
 #include <fstream>
 #include <filesystem>
 
+std::vector<std::string> StrSplit(const std::string& tS, char tDelim) {
+    std::stringstream ss(tS);
+    std::string item;
+    std::vector<std::string> out;
+    while (std::getline(ss, item, tDelim)) {
+        out.push_back(item);
+    }
+    return out;
+}
+
 std::string StrFromFile(std::string tPath) {
     std::filesystem::path path(tPath);
     if(!std::filesystem::exists(path)) {
@@ -62,7 +72,7 @@ glm::vec3 float3ToVec3(float* tF) {
     return glm::vec3(tF[0], tF[1], tF[2]);
 }
 
-static const std::string currentDateTime() {
+static const std::string currentDateTime(const char* tFormat = "%d.%m.%Y %X") {
     struct tm newtime;
     __time64_t long_time;
     char timebuf[26];
@@ -76,7 +86,7 @@ static const std::string currentDateTime() {
         LOG_WARN("Invalid argument to _localtime64_s.");
         return "invalid";
     }
-    strftime(timebuf, sizeof(timebuf), "%d.%m.%Y %X", &newtime);
+    strftime(timebuf, sizeof(timebuf), tFormat, &newtime);
     return timebuf;
 }
 
@@ -159,6 +169,7 @@ std::string FileDialog::open() const {
     // use the contents of szFile to initialize itself.
     ofn.lpstrFile[0] = '\0';
     ofn.nMaxFile = sizeof(szFile);
+    ofn.lpstrDefExt = "rle";
     ofn.lpstrFilter = filter;
     ofn.nFilterIndex = filter_id;
     ofn.lpstrFileTitle = NULL;
@@ -184,15 +195,17 @@ std::string FileDialog::save() const {
     // use the contents of szFile to initialize itself.
     ofn.lpstrFile[0] = '\0';
     ofn.nMaxFile = sizeof(szFile);
+    ofn.lpstrDefExt = "rle";
     ofn.lpstrFilter = filter;
     ofn.nFilterIndex = filter_id;
     ofn.lpstrFileTitle = NULL;
     ofn.nMaxFileTitle = 0;
     ofn.lpstrInitialDir = path;
-    ofn.Flags = OFN_EXPLORER | OFN_OVERWRITEPROMPT;
+    ofn.Flags = OFN_EXPLORER | OFN_PATHMUSTEXIST | OFN_HIDEREADONLY | OFN_OVERWRITEPROMPT;
     //Display the Open dialog box. 
-    if (GetSaveFileName(&ofn) == TRUE)
+    if (GetSaveFileName(&ofn) == TRUE) {
         return szFile;
+    }
     return default_file;
 }
 #endif // !WIN32

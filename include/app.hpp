@@ -15,9 +15,7 @@ namespace Firesteel {
 		App() {
 			LOG_INFO("Initializing Firesteel App.");
 		}
-		virtual ~App() {
-			LOG_INFO("Shutting down Firesteel App.");
-		}
+		virtual ~App() { }
 		void shutdown() {
 			window.close();
 		}
@@ -68,7 +66,7 @@ namespace Firesteel {
                 window.pollEvents();
                 //Per-frame time logic.
                 double currentFrame = glfwGetTime();
-                deltaTime = currentFrame - mLastFrame;
+                deltaTime = static_cast<float>(currentFrame - mLastFrame);
                 mLastFrame = currentFrame;
                 mFrameCount++;
                 if (currentFrame - mLastFrameFPS >= 1.0) {

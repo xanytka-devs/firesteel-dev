@@ -14,7 +14,6 @@
 #define LOG_CRIT(...) Log::log_critical(__VA_ARGS__);
 	class Log {
 	public:
-#ifdef WIN32
 #define CMD_F_BLACK 0
 #define CMD_F_BLUE 1
 #define CMD_F_GREEN 2
@@ -48,8 +47,6 @@
 #define CMD_BG_LPURPLE 208
 #define CMD_BG_LYELLOW 224
 #define CMD_BG_WHITE 240
-
-#endif
 	static void log_c(const std::string& tMsg, const int t_mod = CMD_F_WHITE) {
 		log(tMsg + "\n", t_mod);
 	}

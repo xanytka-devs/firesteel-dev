@@ -184,7 +184,7 @@ vec3 FXAA() {
 uniform float exposure;
 
 bool horizontal = false;
-float weight[5] = float[] (0.252 * 4, 0.319 * 4, 0.128 * 4, 0.045 * 4, 0.001 / 4);
+float weight[5] = float[] (0.252 * 2, 0.319 * 2, 0.128 * 2, 0.045 * 2, 0.001 / 2);
 vec3 calcBloom() {
 	vec3 final = vec3(0);
 	for(int i =0;i<2;i++) {

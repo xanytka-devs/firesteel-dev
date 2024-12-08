@@ -2684,7 +2684,7 @@ DRWAV_PRIVATE drwav_uint64 drwav__metadata_process_unknown_chunk(drwav__metadata
 
 DRWAV_PRIVATE drwav_bool32 drwav__chunk_matches(drwav_metadata_type allowedMetadataTypes, const drwav_uint8* pChunkID, drwav_metadata_type type, const char* pID)
 {
-    return (allowedMetadataTypes & type) && drwav_fourcc_equal(pChunkID, pID);
+    return (allowedMetadataTypes & type) & drwav_fourcc_equal(pChunkID, pID);
 }
 
 DRWAV_PRIVATE drwav_uint64 drwav__metadata_process_chunk(drwav__metadata_parser* pParser, const drwav_chunk_header* pChunkHeader, drwav_metadata_type allowedMetadataTypes)

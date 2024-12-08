@@ -2,13 +2,14 @@ cmake_minimum_required(VERSION 3.12)
 project(FiresteelDev)
 set(PRJ_NAME FiresteelDev)
 
-option(FS_INCLUDE_ASSIMP "Include Assimp libraries (G)" ON)
-option(FS_INCLUDE_GLM "Include GLM library (U)" ON)
-option(FS_INCLUDE_FT "Include FreeType library (U)" ON)
-option(FS_INCLUDE_IMGUI "Include ImGui library (U)" ON)
-option(FS_INCLUDE_OCULUS "Include Oculus library (P)" ON)
-option(FS_INCLUDE_OGL "Include OpenGL libraries (G)" ON)
-option(FS_INCLUDE_OAL "Include OpenAL library (S)" ON)
+option(FS_INCLUDE_ASSIMP "Include Assimp libraries (GRAPHICS)" ON)
+option(FS_INCLUDE_GLM "Include GLM library (UI)" ON)
+option(FS_INCLUDE_FT "Include FreeType library (UI)" ON)
+option(FS_INCLUDE_IMGUI "Include ImGui library (UI)" ON)
+option(FS_INCLUDE_OCULUS "Include Oculus library (PLATFORM)" ON)
+option(FS_INCLUDE_OGL "Include OpenGL libraries (GRAPHICS)" ON)
+option(FS_INCLUDE_OAL "Include OpenAL library (SOUND)" ON)
+option(FS_INCLUDE_LUA "Include LuaBridge library (WRAPPER)" ON)
 
 file(GLOB_RECURSE ENGINE_INCLUDES "include/*.hpp")
 file(GLOB_RECURSE ENGINE_SOURCES "src/*.cpp")
@@ -18,12 +19,16 @@ endif()
 if(FS_INCLUDE_OCULUS)
 	file(GLOB_RECURSE OCULUS_INCLUDES "external/oculus/*.h")
 endif()
+if(FS_INCLUDE_LUA)
+	file(GLOB_RECURSE LUA_INCLUDES "external/lua/include/*.hpp external/lua/include/*.h")
+endif()
 
 set(PRJ_ALL
 	${ENGINE_INCLUDES}
 	${ENGINE_SOURCES}
 	${FT_INCLUDES}
 	${OCULUS_INCLUDES}
+	${LUA_INCLUDES}
 )
 
 add_executable(${PRJ_NAME}
@@ -90,4 +95,12 @@ if(FS_INCLUDE_OAL)
 	set_target_properties(openal-info PROPERTIES FOLDER "External/openal-soft")
 	set_target_properties(alcommon PROPERTIES FOLDER "External/openal-soft")
 	set_target_properties(al-excommon PROPERTIES FOLDER "External/openal-soft")
+endif()
+
+if(FS_INCLUDE_LUA)
+	target_link_libraries(${PRJ_NAME} PRIVATE lua54.lib)
+
+	add_subdirectory(external/lua/LuaBridge ${CMAKE_CURRENT_BINARY_DIR}/LuaBridge)
+	target_link_libraries(${PRJ_NAME} PRIVATE LuaBridge)
+	set_target_properties(LuaBridge PROPERTIES FOLDER "External/Lua")
 endif()

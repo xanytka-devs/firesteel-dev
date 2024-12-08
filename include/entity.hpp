@@ -62,7 +62,7 @@ namespace Firesteel {
             modelMatrix = glm::rotate(modelMatrix, float(glm::radians(transform.Rotation.x)), glm::vec3(1, 0, 0));
             modelMatrix = glm::rotate(modelMatrix, float(glm::radians(transform.Rotation.y)), glm::vec3(0, 1, 0));
             modelMatrix = glm::rotate(modelMatrix, float(glm::radians(transform.Rotation.z)), glm::vec3(0, 0, 1));
-            modelMatrix = glm::scale(modelMatrix, glm::vec3(0.5f));
+            modelMatrix = glm::scale(modelMatrix, transform.Size);
             return modelMatrix;
         }
 

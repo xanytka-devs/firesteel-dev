@@ -32,7 +32,7 @@ bool Mouse::m_buttons_changed[GLFW_MOUSE_BUTTON_LAST] = { 0 };
 bool inited = false;
 std::ofstream logStream;
 
-static const std::string currentDateTime() {
+static const std::string currentDateTime(const char* tFormat) {
 	struct tm newtime;
 	__time64_t long_time;
 	char timebuf[26];
@@ -46,7 +46,7 @@ static const std::string currentDateTime() {
 		LOG_WARN("Invalid argument to _localtime64_s.");
 		return "invalid";
 	}
-	strftime(timebuf, sizeof(timebuf), "%X", &newtime);
+	strftime(timebuf, sizeof(timebuf), tFormat, &newtime);
 	return timebuf;
 }
 
@@ -60,7 +60,7 @@ void Log::logToFile(const char* tMsg, const bool tAddTimestamp) {
 		inited = true;
 	}
 	std::ostringstream logEntry;
-	if(tAddTimestamp) logEntry << currentDateTime() + " ";
+	if(tAddTimestamp) logEntry << currentDateTime("%X") + " ";
 	logEntry << tMsg;
 	logStream << logEntry.str();
 	logStream.flush();
@@ -68,6 +68,21 @@ void Log::logToFile(const char* tMsg, const bool tAddTimestamp) {
 void Log::destroyFileLogger() {
 	logStream.close();
 	inited = false;
+	std::fstream src("logs/latest.log", std::ios::in | std::ios::binary);
+	if (!src.good()) {
+		LOG_ERRR("Couldn't open 'latest.log'");
+		return;
+	}
+	std::string destFileName = "logs/" + currentDateTime("%d-%m-%Y %X") + ".log";
+	std::replace(destFileName.begin(), destFileName.end(), ':', '.');
+	std::ofstream dest(destFileName, std::ios::trunc | std::ios::binary);
+	if (!dest.good()) {
+		LOG_ERRR("Couldn't backup 'latest.log'");
+		return;
+	}
+	dest << src.rdbuf();
+	src.close();
+	dest.close();
 }
 void Log::log(const std::string& tMsg, const int tMod, const bool tAddTimestamp) {
 	logToFile(tMsg.c_str(), tAddTimestamp); // File logging.

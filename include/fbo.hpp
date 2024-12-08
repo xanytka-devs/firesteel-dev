@@ -75,6 +75,8 @@ namespace Firesteel {
 
         unsigned int getID(const size_t& tID = 0) const { return FBOtextures[tID]; }
         glm::vec2 getSize() const { return mSize; }
+        float getWidth() const { return mSize.x; }
+        float getHeight() const { return mSize.y; }
         float aspect() const { return (mSize.x / mSize.y); }
     private:
         glm::vec2 mSize = glm::vec2(0);
@@ -94,7 +96,7 @@ namespace Firesteel {
             unsigned int attachments[11]{};
             for (size_t i = 0; i < FBOsSize; i++) {
                 glBindTexture(GL_TEXTURE_2D, FBOtextures[i]);
-                glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB16F, static_cast<GLuint>(mSize.x), static_cast<GLuint>(mSize.y), 0, GL_RGB, GL_FLOAT, NULL);
+                glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, static_cast<GLsizei>(mSize.x), static_cast<GLsizei>(mSize.y), 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
                 glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
                 glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
                 attachments[i] = GL_COLOR_ATTACHMENT0 + static_cast<unsigned int>(i);
@@ -103,7 +105,7 @@ namespace Firesteel {
             //Framebuffer's render buffer.
             glGenRenderbuffers(1, &RBO);
             glBindRenderbuffer(GL_RENDERBUFFER, RBO);
-            glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, static_cast<GLuint>(mSize.x), static_cast<GLuint>(mSize.y));
+            glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, static_cast<GLsizei>(mSize.x), static_cast<GLsizei>(mSize.y));
             glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, RBO);
             // tell OpenGL which color attachments we'll use (of this framebuffer) for rendering 
             glDrawBuffers(static_cast<GLsizei>(FBOsSize), attachments);
@@ -115,14 +117,14 @@ namespace Firesteel {
             //Framebuffer's textures.
             for(size_t i = 0; i < FBOsSize; i++) {
                 glBindTexture(GL_TEXTURE_2D, FBOtextures[i]);
-                glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB16F, static_cast<GLuint>(mSize.x), static_cast<GLuint>(mSize.y), 0, GL_RGB, GL_FLOAT, NULL);
+                glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, static_cast<GLsizei>(mSize.x), static_cast<GLsizei>(mSize.y), 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
                 glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
                 glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-                glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0 + static_cast<GLenum>(i), GL_TEXTURE_2D, FBOtextures[i], 0);
+                glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0 + static_cast<GLsizei>(i), GL_TEXTURE_2D, FBOtextures[i], 0);
             }
             //Framebuffer's render buffer.
             glBindRenderbuffer(GL_RENDERBUFFER, RBO);
-            glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, static_cast<GLuint>(mSize.x), static_cast<GLuint>(mSize.y));
+            glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, static_cast<GLsizei>(mSize.x), static_cast<GLsizei>(mSize.y));
             glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, RBO);
             //Unbind framebuffer.
             glBindFramebuffer(GL_FRAMEBUFFER, 0);

@@ -64,11 +64,11 @@ namespace FSImGui {
     }
 
     float vec[3] = { 0,0,0 };
-    static bool ColorEdit3(const char* tName, glm::vec3* tColor, const float& tSpeed = 0.1f) {
+    static bool ColorEdit3(const char* tName, glm::vec3* tColor) {
         vec[0] = tColor->r;
         vec[1] = tColor->g;
         vec[2] = tColor->b;
-        bool b = ImGui::ColorEdit3(tName, vec, tSpeed);
+        bool b = ImGui::ColorEdit3(tName, vec);
         if (b) {
             tColor->x = vec[0];
             tColor->y = vec[1];

@@ -1,4 +1,3 @@
-#pragma warning
 //     __ _____ _____ _____
 //  __|  |   __|     |   | |  JSON for Modern C++
 // |  |  |__   |  |  | | | |  version 3.11.3
@@ -8237,7 +8236,7 @@ class lexer : public lexer_base<BasicJsonType>
                     }
                 }
             }
-
+            break;
             // multi-line comments skip input until */ is read
             case '*':
             {
@@ -8272,14 +8271,15 @@ class lexer : public lexer_base<BasicJsonType>
                     }
                 }
             }
-
+            break;
             // unexpected character after reading '/'
             default:
             {
                 error_message = "invalid comment; expecting '/' or '*' after '/'";
-                return false;
+                break;
             }
         }
+        return false;
     }
 
     JSON_HEDLEY_NON_NULL(2)
