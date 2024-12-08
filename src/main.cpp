@@ -135,9 +135,11 @@ static void CreateScreenShot(unsigned int tWidth, unsigned int tHeight) {
     }
     else {
         glReadPixels(0, 0, width, height, GL_RGB, GL_UNSIGNED_BYTE, pixels.data());
+        width += 1;
+        while (pixels.size() > width * height * 3) pixels.pop_back();
         stbi_flip_vertically_on_write(true);
         if (choosenScreenShotFormat == 1) {
-            if (!stbi_write_png(screenShotPath.c_str(), width, height, 3, pixels.data(), 3 * width)) {
+            if (!stbi_write_png(screenShotPath.c_str(), width, height, 3, pixels.data(), 3 * (width))) {
                 LOG_ERRR("Couldn't create a screenshot at: " + screenShotPath);
             }
             else LOG_INFO("Created a screenshot at: " + screenShotPath);
@@ -346,38 +348,38 @@ class EditorApp : public App {
         lua_pcall(L, 0, 0, 0);
 
         size_t cmd_v[] = {
-            CMD_F_BLACK     ,
-            CMD_F_BLUE      ,
-            CMD_F_GREEN     ,
-            CMD_F_CYAN      ,
-            CMD_F_RED       ,
-            CMD_F_PURPLE    ,
-            CMD_F_YELLOW    ,
-            CMD_F_GRAY      ,
-            CMD_F_LBLACK    ,
-            CMD_F_LBLUE     ,
-            CMD_F_LGREEN    ,
-            CMD_F_LCYAN     ,
-            CMD_F_LRED      ,
-            CMD_F_LPURPLE   ,
-            CMD_F_LYELLOW   ,
-            CMD_F_WHITE     ,
+            CMD_F_BLACK   ,
+            CMD_F_BLUE    ,
+            CMD_F_GREEN   ,
+            CMD_F_CYAN    ,
+            CMD_F_RED     ,
+            CMD_F_PURPLE  ,
+            CMD_F_YELLOW  ,
+            CMD_F_GRAY    ,
+            CMD_F_LBLACK  ,
+            CMD_F_LBLUE   ,
+            CMD_F_LGREEN  ,
+            CMD_F_LCYAN   ,
+            CMD_F_LRED    ,
+            CMD_F_LPURPLE ,
+            CMD_F_LYELLOW ,
+            CMD_F_WHITE   ,
 
-            CMD_BG_BLACK    ,
-            CMD_BG_BLUE     ,
-            CMD_BG_GREEN    ,
-            CMD_BG_CYAN     ,
-            CMD_BG_RED      ,
-            CMD_BG_PURPLE   ,
-            CMD_BG_YELLOW   ,
-            CMD_BG_GRAY     ,
-            CMD_BG_LBLACK   ,
-            CMD_BG_LBLUE    ,
-            CMD_BG_LGREEN   ,
-            CMD_BG_LCYAN    ,
-            CMD_BG_LRED     ,
-            CMD_BG_LPURPLE  ,
-            CMD_BG_LYELLOW  ,
+            CMD_BG_BLACK  ,
+            CMD_BG_BLUE   ,
+            CMD_BG_GREEN  ,
+            CMD_BG_CYAN   ,
+            CMD_BG_RED    ,
+            CMD_BG_PURPLE ,
+            CMD_BG_YELLOW ,
+            CMD_BG_GRAY   ,
+            CMD_BG_LBLACK ,
+            CMD_BG_LBLUE  ,
+            CMD_BG_LGREEN ,
+            CMD_BG_LCYAN  ,
+            CMD_BG_LRED   ,
+            CMD_BG_LPURPLE,
+            CMD_BG_LYELLOW,
             CMD_BG_WHITE
         };
 
@@ -690,7 +692,6 @@ class EditorApp : public App {
                     ImGui::EndMenuBar();
                 }
                 ImGui::End();
-
 
                 if (newsViewOpen) {
                     ImGui::Begin("News", &newsViewOpen);
