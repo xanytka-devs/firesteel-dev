@@ -1,106 +1,36 @@
 cmake_minimum_required(VERSION 3.12)
-project(FiresteelDev)
-set(PRJ_NAME FiresteelDev)
+set(CMAKE_USER_MAKE_RULES_OVERRIDE "FixFlags.cmake")
+project(fse)
+set(EDITOR_PROJECT_NAME fse)
+add_subdirectory(engine)
 
-option(FS_INCLUDE_ASSIMP "Include Assimp libraries (GRAPHICS)" ON)
-option(FS_INCLUDE_GLM "Include GLM library (UI)" ON)
-option(FS_INCLUDE_FT "Include FreeType library (UI)" ON)
-option(FS_INCLUDE_IMGUI "Include ImGui library (UI)" ON)
-option(FS_INCLUDE_OCULUS "Include Oculus library (PLATFORM)" ON)
-option(FS_INCLUDE_OGL "Include OpenGL libraries (GRAPHICS)" ON)
-option(FS_INCLUDE_OAL "Include OpenAL library (SOUND)" ON)
-option(FS_INCLUDE_LUA "Include LuaBridge library (WRAPPER)" ON)
+file(GLOB_RECURSE EDITOR_INCLUDES "include/*.hpp")
+file(GLOB_RECURSE FT_INCLUDES "engine/external/freetype/*.hpp engine/external/freetype/*.h")
+file(GLOB_RECURSE FT_LIB "engine/external/freetype/freetype.lib")
 
-file(GLOB_RECURSE ENGINE_INCLUDES "include/*.hpp")
-file(GLOB_RECURSE ENGINE_SOURCES "src/*.cpp")
-if(FS_INCLUDE_FT)
-	file(GLOB_RECURSE FT_INCLUDES "external/freetype/*.hpp external/freetype/*.h")
-endif()
-if(FS_INCLUDE_OCULUS)
-	file(GLOB_RECURSE OCULUS_INCLUDES "external/oculus/*.h")
-endif()
-if(FS_INCLUDE_LUA)
-	file(GLOB_RECURSE LUA_INCLUDES "external/lua/include/*.hpp external/lua/include/*.h")
-endif()
-
-set(PRJ_ALL
-	${ENGINE_INCLUDES}
-	${ENGINE_SOURCES}
+set(EDITOR_ALL
+	"main.cpp"
+	${EDITOR_INCLUDES}
 	${FT_INCLUDES}
-	${OCULUS_INCLUDES}
-	${LUA_INCLUDES}
+	${FREETYPE_INCLUDE_DIRS}
 )
 
-add_executable(${PRJ_NAME}
-	${PRJ_ALL}
+add_executable(${EDITOR_PROJECT_NAME}
+	${EDITOR_ALL}
 	"build/app.rc"
 )
 
-source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR}/ FILES
-	${PRJ_ALL}
+target_link_libraries(${EDITOR_PROJECT_NAME}
+	firesteel
+	glad
+	ImGui
+	glm
+	assimp
+	OpenAL
+	LuaBridge
 )
+target_compile_features(${EDITOR_PROJECT_NAME} PUBLIC cxx_std_17)
+target_include_directories(${EDITOR_PROJECT_NAME} PUBLIC includes)
 
-target_include_directories(${PRJ_NAME} PUBLIC includes)
-target_include_directories(${PRJ_NAME} PUBLIC stb)
-target_include_directories(${PRJ_NAME} PRIVATE src)
-target_compile_features(${PRJ_NAME} PUBLIC cxx_std_17)
-
-if(FS_INCLUDE_OGL)
-	add_subdirectory(external/glfw ${CMAKE_CURRENT_BINARY_DIR}/glfw)
-	target_link_libraries(${PRJ_NAME} PRIVATE glfw)
-	set_target_properties(glfw PROPERTIES FOLDER "External/GLFW3")
-	set_target_properties(uninstall PROPERTIES FOLDER "External/GLFW3")
-	set_target_properties(update_mappings PROPERTIES FOLDER "External/GLFW3")
-	
-	add_subdirectory(external/glad ${CMAKE_CURRENT_BINARY_DIR}/glad)
-	target_link_libraries(${PRJ_NAME} PRIVATE glad)
-	set_target_properties(glad PROPERTIES FOLDER "External")
-endif()
-
-if(FS_INCLUDE_GLM)
-	add_subdirectory(external/glm ${CMAKE_CURRENT_BINARY_DIR}/glm)
-	target_link_libraries(${PRJ_NAME} PRIVATE glm)
-	set_target_properties(glm PROPERTIES FOLDER "External")
-endif()
-
-if(FS_INCLUDE_ASSIMP)
-	add_subdirectory(external/assimp ${CMAKE_CURRENT_BINARY_DIR}/assimp)
-	target_link_libraries(${PRJ_NAME} PRIVATE assimp)
-	set_target_properties(assimp PROPERTIES FOLDER "External/assimp")
-	set_target_properties(UpdateAssimpLibsDebugSymbolsAndDLLs PROPERTIES FOLDER "External/assimp")
-	set_target_properties(zlibstatic PROPERTIES FOLDER "External/assimp")
-endif()
-
-if(FS_INCLUDE_FT)
-	find_package(Freetype REQUIRED)
-	target_include_directories(${PRJ_NAME} PRIVATE external/freetype)
-	target_link_libraries(${PRJ_NAME} PRIVATE ../external/freetype/freetype)
-endif()
-
-if(FS_INCLUDE_OCULUS)
-	target_include_directories(${PRJ_NAME} PRIVATE external/oculus)
-	target_link_libraries(${PRJ_NAME} PRIVATE ../external/oculus/LibOVR)
-endif()
-
-if(FS_INCLUDE_IMGUI)
-	add_subdirectory(external/imgui ${CMAKE_CURRENT_BINARY_DIR}/imgui)
-	target_link_libraries(${PRJ_NAME} PRIVATE ImGui)
-	set_target_properties(ImGui PROPERTIES FOLDER "External")
-endif()
-
-if(FS_INCLUDE_OAL)
-	add_subdirectory(external/openal-soft ${CMAKE_CURRENT_BINARY_DIR}/openal-soft)
-	target_link_libraries(${PRJ_NAME} PRIVATE OpenAL)
-	set_target_properties(OpenAL PROPERTIES FOLDER "External/openal-soft")
-	set_target_properties(openal-info PROPERTIES FOLDER "External/openal-soft")
-	set_target_properties(alcommon PROPERTIES FOLDER "External/openal-soft")
-	set_target_properties(al-excommon PROPERTIES FOLDER "External/openal-soft")
-endif()
-
-if(FS_INCLUDE_LUA)
-	target_link_libraries(${PRJ_NAME} PRIVATE lua54.lib)
-
-	add_subdirectory(external/lua/LuaBridge ${CMAKE_CURRENT_BINARY_DIR}/LuaBridge)
-	target_link_libraries(${PRJ_NAME} PRIVATE LuaBridge)
-	set_target_properties(LuaBridge PROPERTIES FOLDER "External/Lua")
-endif()
+set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT ${EDITOR_PROJECT_NAME})
+set_target_properties(${EDITOR_PROJECT_NAME} PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin/)

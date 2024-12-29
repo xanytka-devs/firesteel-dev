@@ -5,9 +5,13 @@ in vec2 frag_UV;
 
 uniform sampler2D screenTexture;
 uniform sampler2D bloomBlur;
-uniform bool bloom;
 uniform int AAMethod;
 uniform vec2 screenSize;
+uniform float gamma;
+uniform bool bloom;
+uniform float bloomWeight;
+uniform bool grayscale;
+uniform float exposure;
 
 const float offset = 1.0 / 300.0;
 
@@ -181,10 +185,8 @@ vec3 FXAA() {
 	return texture(screenTexture,finalUv).rgb;
 }
 
-uniform float exposure;
-
 bool horizontal = false;
-float weight[5] = float[] (0.252 * 2, 0.319 * 2, 0.128 * 2, 0.045 * 2, 0.001 / 2);
+float weight[5] = float[] (0.227027 * bloomWeight, 0.1945946 * bloomWeight, 0.1216216 * bloomWeight, 0.054054 * bloomWeight, 0.016216 / bloomWeight);
 vec3 calcBloom() {
 	vec3 final = vec3(0);
 	for(int i =0;i<2;i++) {
@@ -238,11 +240,6 @@ void main() {
 	//
 	//FragColor = vec4(col, 1.0);
 	
-	////Grayscale filter.
-	//FragColor = texture(screenTexture, frag_UV);
-    //float average = 0.2126 * FragColor.r + 0.7152 * FragColor.g + 0.0722 * FragColor.b;
-    //FragColor = vec4(average, average, average, 1.0);
-	
 	////Japan-ish filter. (Made by me)
 	//vec3 col = texture(screenTexture, frag_UV).rgb;
 	//float colSum = (col.x + col.y + col.z);
@@ -258,9 +255,16 @@ void main() {
 	if(AAMethod==1) col = FXAA();
 	
 	// bloom
-	col += calcBloom();
+	if(bloom) col += calcBloom();
 	
     // exposure tone mapping
     vec3 mapped = vec3(1.0) - exp(-col * exposure);
-    FragColor = vec4(mapped,1);
+	
+	// grayscale
+	if(grayscale) {
+    	float average = 0.2126 * mapped.r + 0.7152 * mapped.g + 0.0722 * mapped.b;
+    	mapped = vec3(average);
+	}
+	
+    FragColor = vec4(pow(mapped, vec3(1.0/gamma)),1);
 }

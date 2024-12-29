@@ -1,0 +1,22 @@
+{
+    "dev": {
+        "backupLogs": false,
+        "consoleDevMode": false
+    },
+    "layout": {
+        "atmosphere": false,
+        "console": false,
+        "entityEditor": true,
+        "lighting": false,
+        "metrics": true,
+        "sceneContentView": true,
+        "sceneView": true,
+        "soundMixer": false,
+        "undoHistory": false
+    },
+    "openedNews": "0.2.0.5",
+    "window": {
+        "height": 664,
+        "width": 1162
+    }
+}
