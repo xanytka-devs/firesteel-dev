@@ -5,7 +5,7 @@ in vec3 frag_POS;
 in vec2 frag_UV;
 in vec3 frag_NORMAL;
 
-uniform int DrawMode;
+uniform int drawMode;
 uniform vec3 color;
 
 float near = 0.1; 
@@ -17,6 +17,6 @@ float LinearizeDepth(float depth) {
 }
 
 void main() {	
-	if(DrawMode==0) frag_COLOR = vec4(color, 1.0);
-	else if(DrawMode==1) frag_COLOR = vec4(vec3(LinearizeDepth(gl_FragCoord.z) / far), 1.0);
+	if(drawMode==0) frag_COLOR = vec4(color, 1.0);
+	else if(drawMode==1) frag_COLOR = vec4(vec3(LinearizeDepth(gl_FragCoord.z) / far), 1.0);
 }

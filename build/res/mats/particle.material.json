@@ -1,0 +1,7 @@
+{
+	"name": "Particle",
+	"shader": {
+		"vert": "res/mats/shaders/particles.vs",
+		"frag": "res/mats/shaders/particles.fs"
+	}
+}

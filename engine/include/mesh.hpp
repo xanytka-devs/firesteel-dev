@@ -94,6 +94,7 @@ namespace Firesteel {
                     // Now set the sampler to the correct texture unit.
                     textures[i].bind(i);
                     shader->setInt("material." + name + std::to_string(number), i);
+                    shader->setBool("material." + name + std::to_string(number) + "_isMonochrome", textures[i].isMonochrome);
                 }
                 shader->setBool("material.opacityMask", opacNr > 0);
             }

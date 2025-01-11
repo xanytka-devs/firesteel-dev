@@ -14,13 +14,20 @@ in VS_OUT {
 
 struct Material {
 	sampler2D diffuse0;
+	bool diffuse0_isMonochrome;
 	vec4 diffuse;
+	
 	sampler2D specular0;
+	bool specular0_isMonochrome;
 	vec4 specular;
+	
 	sampler2D emission0;
+	bool emission0_isMonochrome;
 	vec4 emission;
+	
 	sampler2D normal0;
 	float normalStrength;
+	
 	bool opacityMask;
 	sampler2D opacity0;
 	
@@ -32,7 +39,7 @@ struct Material {
 };
 uniform Material material;
 uniform bool noTextures;
-uniform int DrawMode;
+uniform int drawMode;
 
 struct DirectionalLight {
 	vec3 direction;
@@ -79,9 +86,9 @@ float LinearizeDepth(float depth) {
 
 uniform int lightingType;
 uniform samplerCube skybox;
-vec3 calcDirLight  (vec4 diffMap, vec4 specMap, vec4 emisMap, vec4 normMap);
-vec3 calcPointLight(int pLightIndex, vec4 diffMap, vec4 specMap, vec4 emisMap, vec4 normMap);
-vec3 calcSpotLight (int sLightIndex, vec4 diffMap, vec4 specMap, vec4 emisMap, vec4 normMap);
+vec3 calcDirLight  (vec4 diffMap, vec4 specMap, vec4 normMap);
+vec3 calcPointLight(int pLightIndex, vec4 diffMap, vec4 specMap, vec4 normMap);
+vec3 calcSpotLight (int sLightIndex, vec4 diffMap, vec4 specMap, vec4 normMap);
 
 uniform struct FogParameters {
 	vec3 vFogColor; // Fog color
@@ -121,12 +128,18 @@ void main() {
 	// texture values
 	if(!noTextures) {
 		diffMap = texture(material.diffuse0, fs_in.frag_UV) * material.diffuse;
+		if(material.diffuse0_isMonochrome)
+			diffMap = vec4(vec3(diffMap.r),1);
 		opacMap = texture(material.opacity0, fs_in.frag_UV);
 		transparency = diffMap.a;
 		if(transparency<0.1) discard;
 		if(material.opacityMask) transparency = opacMap.r;
 		specMap = texture(material.specular0, fs_in.frag_UV);
+		if(material.specular0_isMonochrome)
+			specMap = vec4(vec3(specMap.r),1);
 		emisMap = texture(material.emission0, fs_in.frag_UV);
+		if(material.emission0_isMonochrome)
+			emisMap = vec4(vec3(emisMap.r),1);
 		normMap = texture(material.normal0, fs_in.frag_UV) * material.normalStrength;
 	}
 	// tangets
@@ -139,44 +152,44 @@ void main() {
 	vec3 I = normalize(fs_in.frag_POS - fs_in.view_POS);
 	vec3 R = refract(I, normalize(fs_in.frag_NORMAL), material.skyboxRefraction);
 	vec3 skyboxCalc = texture(skybox, -R).rgb * material.skyboxRefractionStrength;
-	if(DrawMode!=9) skyboxCalc *= specMap.rgb;
+	if(drawMode!=9) skyboxCalc *= specMap.rgb;
 	// light calculations
 	vec3 result = vec3(0);
 	if(lightingType > 0) {
 		// directional light
-		result = calcDirLight(diffMap, specMap, emisMap, norm);
+		result = calcDirLight(diffMap, specMap, norm);
 		// point lights
 		for(int p = 0; p < numPointLights; p++)
-			result += calcPointLight(p, diffMap, specMap, emisMap, norm);
+			result += calcPointLight(p, diffMap, specMap, norm);
 		// spot lights
 		for(int s = 0; s < numSpotLights; s++)
-			result += calcSpotLight(s, diffMap, specMap, emisMap, norm);
+			result += calcSpotLight(s, diffMap, specMap, norm);
 		// emission
-		result += (emisMap.rgb * material.emissionColor) * material.emissionFactor;
+		//result += (emisMap.rgb * material.emissionColor) * material.emissionFactor;
 		// skybox
 		result += skyboxCalc;
 	} else result = diffMap.rgb;
 	// fog
 	float fFogCoord = abs(gl_FragCoord.z/gl_FragCoord.w);
 	result = mix(result, fogParams.vFogColor, getFogFactor(fFogCoord));
-	switch(DrawMode) {
+	switch(drawMode) {
 		case 0: frag_COLOR = vec4(result, transparency);								break;
 		case 1: frag_COLOR = vec4(vec3(LinearizeDepth(gl_FragCoord.z) / far), 1.0);		break;
-		case 2: frag_COLOR = specMap;													break;
+		case 2: frag_COLOR = vec4(specMap.rgb, 1);										break;
 		case 3: frag_COLOR = vec4(fs_in.frag_NORMAL * 0.5 + 0.5,1.0);					break;
-		case 4: frag_COLOR = norm;														break;
-		case 5: frag_COLOR = normMap;													break;
+		case 4: frag_COLOR = vec4(norm.rgb, 1);											break;
+		case 5: frag_COLOR = vec4(normMap.rgb, 1);										break;
 		case 6: frag_COLOR = vec4(fs_in.frag_TAN * 0.5 + 0.5,1.0);						break;
 		case 7: frag_COLOR = vec4(fs_in.frag_BITAN * 0.5 + 0.5,1.0);					break;
-		case 8: frag_COLOR = emisMap;													break;
+		case 8: frag_COLOR = vec4(emisMap.rgb, 1);										break;
 		case 9: frag_COLOR = vec4(skyboxCalc,1.0);										break;
 	}
-	float brightness = dot(frag_COLOR.rgb, vec3(0.2126, 0.7152, 0.0722));
-    if(brightness > 1.0) frag_BRIGHTNESS = vec4(frag_COLOR.rgb, 1.0);
-    else frag_BRIGHTNESS = vec4(0.0, 0.0, 0.0, 1.0);
+	float brightness = dot(frag_COLOR.rgb + emisMap.rgb, vec3(0.2126, 0.7152, 0.0722));
+    if(brightness > 1.0) frag_BRIGHTNESS = emisMap;
+    else frag_BRIGHTNESS = vec4(vec3(0), 1);
 }
 
-vec3 calcDirLight(vec4 diffMap, vec4 specMap, vec4 emisMap, vec4 normMap) {
+vec3 calcDirLight(vec4 diffMap, vec4 specMap, vec4 normMap) {
 	// ambient
     vec3 ambient = dirLight.ambient * diffMap.rgb;
   	
@@ -191,6 +204,7 @@ vec3 calcDirLight(vec4 diffMap, vec4 specMap, vec4 emisMap, vec4 normMap) {
 	float spec = 0;
 	vec3 reflectDir = reflect(-lightDir, norm);
 	spec = pow(max(dot(viewDir, reflectDir), 0.0), material.shininess);
+	if(diff==0.0) spec = 0;
 	vec3 halfwayDir = normalize(lightDir + viewDir);
 	if(lightingType==3) spec += pow(max(dot(norm, halfwayDir), 0.0), material.shininess);
     if(lightingType==2) spec = pow(max(dot(norm, halfwayDir), 0.0), material.shininess);
@@ -199,7 +213,7 @@ vec3 calcDirLight(vec4 diffMap, vec4 specMap, vec4 emisMap, vec4 normMap) {
 	return ambient + diffuse + specular;
 }
 
-vec3 calcPointLight(int pLightIndex, vec4 diffMap, vec4 specMap, vec4 emisMap, vec4 normMap) {
+vec3 calcPointLight(int pLightIndex, vec4 diffMap, vec4 specMap, vec4 normMap) {
 	// ambient
     vec3 ambient = pointLights[pLightIndex].ambient * diffMap.rgb;
   	
@@ -215,6 +229,7 @@ vec3 calcPointLight(int pLightIndex, vec4 diffMap, vec4 specMap, vec4 emisMap, v
 	float spec = 0;
 	vec3 reflectDir = reflect(-lightDir, norm);
 	spec = pow(max(dot(viewDir, reflectDir), 0.0), material.shininess);
+	if(diff==0.0) spec = 0;
 	vec3 halfwayDir = normalize(lightDir + viewDir);
 	if(lightingType==3) spec += pow(max(dot(norm, halfwayDir), 0.0), material.shininess);
     if(lightingType==2) spec = pow(max(dot(norm, halfwayDir), 0.0), material.shininess);
@@ -227,7 +242,7 @@ vec3 calcPointLight(int pLightIndex, vec4 diffMap, vec4 specMap, vec4 emisMap, v
 	return (ambient + diffuse + specular) * attenuation;
 }
 
-vec3 calcSpotLight(int sLightIndex, vec4 diffMap, vec4 specMap, vec4 emisMap, vec4 normMap) {
+vec3 calcSpotLight(int sLightIndex, vec4 diffMap, vec4 specMap, vec4 normMap) {
 	// ambient
 	vec3 ambient = spotLights[sLightIndex].ambient * diffMap.rgb;
 	
@@ -242,8 +257,9 @@ vec3 calcSpotLight(int sLightIndex, vec4 diffMap, vec4 specMap, vec4 emisMap, ve
     vec3 viewDir = normalize(TangentViewPos - TangentFragPos);
 	float spec = 0;
 	vec3 reflectDir = reflect(-lightDir, norm);
-	spec = pow(max(dot(viewDir, reflectDir), 0.0), material.shininess);
 	vec3 halfwayDir = normalize(lightDir + viewDir);
+	spec = pow(max(dot(viewDir, reflectDir), 0.0), material.shininess * 2);
+	if(diff==0.0) spec = 0;
 	if(lightingType==3) spec += pow(max(dot(norm, halfwayDir), 0.0), material.shininess);
     if(lightingType==2) spec = pow(max(dot(norm, halfwayDir), 0.0), material.shininess);
 	vec3 specular = specMap.rgb * spec * spotLights[sLightIndex].specular;

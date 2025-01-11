@@ -1,0 +1,7 @@
+{
+	"name": "Basic 3D",
+	"shader": {
+		"vert": "res/mats/shaders/lit_3d.vs",
+		"frag": "res/mats/shaders/lit_3d.fs"
+	}
+}

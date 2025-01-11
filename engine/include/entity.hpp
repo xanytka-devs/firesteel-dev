@@ -49,7 +49,10 @@ namespace Firesteel {
         Transform transform;
         Model model;
 
-        Entity() { }
+        /// Simplified constructor.
+        Entity(glm::vec3 tPos = glm::vec3(0), glm::vec3 tRot = glm::vec3(0), glm::vec3 tSize = glm::vec3(1)) {
+            transform = Transform(tPos, tRot, tSize);
+        }
 
         /// Constructor, expects a filepath to a 3D model.
         Entity(const std::string& tPath,
@@ -59,7 +62,7 @@ namespace Firesteel {
         }
 
         /// Renders the model.
-        void draw(const Shader* tShader) {
+        void draw(Shader* tShader) {
             if(!mHasMeshes) return;
             tShader->enable();
             tShader->setMat4("model", getMatrix());
@@ -242,7 +245,7 @@ namespace Firesteel {
                 if(skip) continue;
                 // If texture hasn't been loaded already, load it.
                 Texture texture;
-                texture.ID = TextureFromFile(this->model.directory + "/" + str.C_Str(), true);
+                texture.ID = TextureFromFile(this->model.directory + "/" + str.C_Str(), &texture.isMonochrome, true);
                 texture.type = typeName;
                 texture.path = str.C_Str();
                 textures.push_back(texture);

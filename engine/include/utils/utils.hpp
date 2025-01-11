@@ -108,7 +108,7 @@ std::string StrToUpper(std::string tStr) {
 #include "stb_image.hpp"
 
 /// Loads texture from given file.
-unsigned int TextureFromFile(const std::string& tPath, bool tGamma = false) {
+unsigned int TextureFromFile(const std::string& tPath, bool* tIsMonochromeOut = nullptr, bool tGamma = false) {
     unsigned int textureID;
     glGenTextures(1, &textureID);
 
@@ -116,9 +116,10 @@ unsigned int TextureFromFile(const std::string& tPath, bool tGamma = false) {
     unsigned char* data = stbi_load(tPath.c_str(), &width, &height, &nrComponents, 0);
     if (data) {
         GLenum format = 0;
-        if (nrComponents == 1)
+        if (nrComponents == 1) {
             format = GL_RED;
-        else if (nrComponents == 3)
+            *tIsMonochromeOut = true;
+        } else if (nrComponents == 3)
             tGamma ? format = GL_RGB : format = GL_SRGB;
         else if (nrComponents == 4)
             format = GL_RGBA;

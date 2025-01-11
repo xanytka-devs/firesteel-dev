@@ -6,8 +6,6 @@
 ///   emb::img_fse_logo - FSE icon for window
 ///   emb::shd_vrt_default - Vertex shader if some other shader fails (failsafe)
 ///   emb::shd_frg_default - Fragment shader if some other shader fails (failsafe)
-///   emb::shd_vrt_text - Vertex shader for text display
-///   emb::shd_frg_text - Fragment shader for text display
 /// 
 
 namespace emb {
@@ -232,27 +230,6 @@ void main() {\n\
 	else\n\
 		frag_COLOR = vec4(1.0, 0.25, 0.01, 1.0);\n\
 	frag_COLOR1=vec4(0);\n\
-}\
-";
-	const char* shd_vrt_text = "\
-#version 330 core\n\
-layout(location = 0) in vec4 vertex;\n\
-out vec2 frag_UV;\n\
-uniform mat4 projection;\n\
-void main() {\n\
-	gl_Position = projection * vec4(vertex.xy, 0.0, 1.0);\n\
-	frag_UV = vertex.zw;\n\
-}\
-";
-	const char* shd_frg_text = "\
-#version 330 core\n\
-in vec2 frag_UV;\n\
-out vec4 frag_COLOR;\n\
-uniform sampler2D text;\n\
-uniform vec3 textColor;\n\
-void main() {\n\
-	vec4 sampled = vec4(1.0, 1.0, 1.0, texture(text, frag_UV).r);\n\
-	frag_COLOR = vec4(textColor, 1.0) * sampled;\n\
 }\
 ";
 }

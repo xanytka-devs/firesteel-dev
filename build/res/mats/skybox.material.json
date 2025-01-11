@@ -1,0 +1,7 @@
+{
+	"name": "Skybox",
+	"shader": {
+		"vert": "res/mats/shaders/skybox.vs",
+		"frag": "res/mats/shaders/skybox.fs"
+	}
+}

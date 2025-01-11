@@ -21,40 +21,24 @@ namespace Firesteel {
 		}
 		virtual int start(const char* tTitle = "Firesteel App",
             unsigned int tWinWidth = 800, unsigned int tWinHeight = 600, WindowState tWinState = WS_NORMAL) {
-            LOG("Firesteel 0.2.0.3");
-            LOG_C("[-   Dev branch  -]\n", CMD_F_PURPLE);
+            LOG("Firesteel 0.2.0.6");
+            LOG_C("[-   Dev branch  -]", CMD_F_PURPLE);
             LOG_STATE("STARTUP");
 			onPreInitialize();
             // Create window.
             window = Window(tWinWidth, tWinHeight);
             if(!window.initialize(tTitle, tWinState, BOUND_GL_VERSION_MAJOR, BOUND_GL_VERSION_MINOR))
                 return 1;
-
-            printf("\n");
             //Check for Vulkan.
             bool isVulkan = (glfwVulkanSupported() == 1);
             LOG_INFO(isVulkan ? "Vulkan is supported on current machine."
                 : "Vulkan isn't supported on current machine.");
-            if(isVulkan) {
-                uint32_t glfwExtensionCount = 0;
-                const char** glfwExtensions;
-                glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
-
-                std::vector<const char*> extensions(glfwExtensions, glfwExtensions + glfwExtensionCount);
-                LOG_INFO("Vulkan extensions: ");
-                for (size_t i = 0; i < extensions.size(); i++) {
-                    LOG_C(std::string("  ") + extensions[i]);
-                }
-                printf("\n");
-            }
-
             // GLAD (OpenGL) init.
             Renderer r = Renderer();
             if (!r.initialize()) {
                 LOG_ERRR("OpenGL isn't supported on current machine.");
                 return -1;
-            }
-            else LOG_INFO("OpenGL is supported on current machine.");
+            } else LOG_INFO("OpenGL is supported on current machine.");
             r.loadExtencions();
             r.printInfo();
             r.initializeParams();

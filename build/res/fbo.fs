@@ -5,13 +5,38 @@ in vec2 frag_UV;
 
 uniform sampler2D screenTexture;
 uniform sampler2D bloomBlur;
+uniform bool showBloomSampler;
 uniform int AAMethod;
 uniform vec2 screenSize;
 uniform float gamma;
 uniform bool bloom;
 uniform float bloomWeight;
-uniform bool grayscale;
 uniform float exposure;
+uniform bool invertColors;
+uniform float shaderKernel[9];
+uniform bool useKernel;
+uniform float contrast;
+uniform float saturation;
+uniform float hue;
+uniform float temperature;
+uniform float temperatureMix;
+uniform bool vigiette;
+uniform vec3 vigietteColor;
+uniform float vigietteStrength;
+uniform float vigietteSmoothness;
+
+// All thanks to https://help.pixera.one/glsl-effects/colortemperatureglsl
+// Valid from 1000 to 40000 K (and additionally 0 for pure full white)
+vec3 colorTemperatureToRGB(const in float temperature){
+  // Values from: http://blenderartists.org/forum/showthread.php?270332-OSL-Goodness&p=2268693&viewfull=1#post2268693   
+  mat3 m = (temperature <= 6500.0) ? mat3(vec3(0.0, -2902.1955373783176, -8257.7997278925690),
+	  vec3(0.0, 1669.5803561666639, 2575.2827530017594),
+	  vec3(1.0, 1.3302673723350029, 1.8993753891711275)) : 
+	 	mat3(vec3(1745.0425298314172, 1216.6168361476490, -8257.7997278925690),
+   	vec3(-2666.3474220535695, -2173.1012343082230, 2575.2827530017594),
+	  vec3(0.55995389139931482, 0.70381203140554553, 1.8993753891711275)); 
+  return mix(clamp(vec3(m[0] / (vec3(clamp(temperature, 1000.0, 40000.0)) + m[1]) + m[2]), vec3(0.0), vec3(1.0)), vec3(1.0), smoothstep(1000.0, 0.0, temperature));
+}
 
 const float offset = 1.0 / 300.0;
 
@@ -210,36 +235,6 @@ vec3 calcBloom() {
 }
 
 void main() {
-	////Kernel operations.
-	//vec2 offsets[9] = vec2[](
-    //    vec2(-offset,  offset), // top-left
-    //    vec2( 0.0f,    offset), // top-center
-    //    vec2( offset,  offset), // top-right
-    //    vec2(-offset,  0.0f),   // center-left
-    //    vec2( 0.0f,    0.0f),   // center-center
-    //    vec2( offset,  0.0f),   // center-right
-    //    vec2(-offset, -offset), // bottom-left
-    //    vec2( 0.0f,   -offset), // bottom-center
-    //    vec2( offset, -offset)  // bottom-right    
-    //);
-	//
-    //float kernel[9] = float[](
-    //    0.0625, 0.125, 0.0625,
-    //    0.125, 0.25, 0.125,
-    //    0.0625, 0.125, 0.0625
-    //);
-    //
-    //vec3 sampleTex[9];
-    //for(int i = 0; i < 9; i++)
-    //{
-    //    sampleTex[i] = vec3(texture(screenTexture, frag_UV.st + offsets[i]));
-    //}
-    //vec3 col = vec3(0.0);
-    //for(int i = 0; i < 9; i++)
-    //    col += sampleTex[i] * kernel[i];
-	//
-	//FragColor = vec4(col, 1.0);
-	
 	////Japan-ish filter. (Made by me)
 	//vec3 col = texture(screenTexture, frag_UV).rgb;
 	//float colSum = (col.x + col.y + col.z);
@@ -249,22 +244,59 @@ void main() {
 	//else if(colSum<0.75 && colSum>0.25)
 	//	FragColor = vec4(1, 0, 0, 1);
 	
-	vec3 col = vec3(0);
-	
-	// anti-alising
-	if(AAMethod==1) col = FXAA();
-	
-	// bloom
-	if(bloom) col += calcBloom();
-	
-    // exposure tone mapping
-    vec3 mapped = vec3(1.0) - exp(-col * exposure);
-	
-	// grayscale
-	if(grayscale) {
-    	float average = 0.2126 * mapped.r + 0.7152 * mapped.g + 0.0722 * mapped.b;
-    	mapped = vec3(average);
+	if(showBloomSampler) {
+		FragColor = texture(bloomBlur, frag_UV.st);
+		return;
 	}
 	
-    FragColor = vec4(pow(mapped, vec3(1.0/gamma)),1);
+	vec3 col = vec3(texture(screenTexture, frag_UV.st));
+	// anti-alising
+	if(AAMethod==1) col = FXAA();
+	// contrast
+	col = 0.5 + contrast * (col - 0.5);
+	// kernel operations
+	if(useKernel) {
+		col = vec3(0);
+		vec2 offsets[9] = vec2[](
+			vec2(-offset,  offset), // top-left
+			vec2( 0.0f,    offset), // top-center
+			vec2( offset,  offset), // top-right
+			vec2(-offset,  0.0f),   // center-left
+			vec2( 0.0f,    0.0f),   // center-center
+			vec2( offset,  0.0f),   // center-right
+			vec2(-offset, -offset), // bottom-left
+			vec2( 0.0f,   -offset), // bottom-center
+			vec2( offset, -offset)  // bottom-right    
+		);
+		
+		vec3 sampleTex[9];
+		for(int i = 0; i < 9; i++)
+		{
+			sampleTex[i] = vec3(texture(screenTexture, frag_UV.st + offsets[i]));
+		}
+		for(int i = 0; i < 9; i++)
+			col += sampleTex[i] * shaderKernel[i];
+	}
+	// bloom
+	if(bloom) col += calcBloom();
+    // exposure
+    vec3 mapped = vec3(1.0) - exp(-col * exposure);
+	// temperature
+	mapped = mix(mapped, mapped * colorTemperatureToRGB(temperature), temperatureMix);
+	// hue
+	const vec3 k = vec3(0.57735, 0.57735, 0.57735);
+	float cosAngle = cos(hue);
+	mapped = vec3(mapped * cosAngle + cross(k, mapped) * sin(hue) + k * dot(k, mapped) * (1.0 - cosAngle));
+	// saturation
+	vec3 grayscale = vec3(0.2126 * mapped.r + 0.7152 * mapped.g + 0.0722 * mapped.b);
+	mapped = mix(grayscale, mapped, 1.0 + saturation);
+	// invert
+	if(invertColors)
+		mapped = vec3(1) - mapped;
+	// vigiette
+	float vigietteValue = length(frag_UV - 0.5);
+	if(vigiette) vigietteValue = smoothstep(vigietteValue - vigietteSmoothness, vigietteValue + vigietteSmoothness, vigietteStrength);
+	else vigietteValue=1;
+	
+	FragColor = vec4(mix(vigietteColor,pow(mapped, vec3(1.0/gamma)),vigietteValue), 1);
 }

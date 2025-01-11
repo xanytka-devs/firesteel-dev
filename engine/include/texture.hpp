@@ -8,6 +8,7 @@ namespace Firesteel {
         unsigned int ID = 0;
         std::string type;
         std::string path;
+        bool isMonochrome = false;
         void bind(size_t tId = 0) const {
             glActiveTexture(GL_TEXTURE0 + static_cast<GLenum>(tId));
             glBindTexture(GL_TEXTURE_2D, ID);

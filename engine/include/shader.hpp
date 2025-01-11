@@ -28,6 +28,7 @@ namespace Firesteel {
             std::ifstream fShaderFile;
             std::ifstream gShaderFile;
             bool hasGeomShader = (geometryPath != nullptr);
+            int loadPhase = 0;
             // ensure ifstream objects can throw exceptions:
             vShaderFile.exceptions(std::ifstream::failbit | std::ifstream::badbit);
             fShaderFile.exceptions(std::ifstream::failbit | std::ifstream::badbit);
@@ -50,11 +51,11 @@ namespace Firesteel {
                 vertexCode = vShaderStream.str();
                 fragmentCode = fShaderStream.str();
                 if (hasGeomShader) geometryCode = gShaderStream.str();
+                generate(vertexCode.c_str(), fragmentCode.c_str(), hasGeomShader, geometryCode.c_str());
             }
             catch (std::ifstream::failure& e) {
                 LOG_WARN(std::string("Error while reading shader files: ") + e.what());
             }
-            generate(vertexCode.c_str(), fragmentCode.c_str(), hasGeomShader, geometryCode.c_str());
         }
         
         Shader(const char* vertexCode, const char* fragmentCode, const bool& hasGeomShader, const char* geometryCode) {
