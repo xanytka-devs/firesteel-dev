@@ -310,7 +310,7 @@ class EditorApp : public App {
         LOG_INFO("Reloading base shaders");
         for (size_t i = 0; i < materialReg.size(); i++) {
             materialReg[i].reload();
-            if(!materialReg[i].isLoaded()) materialReg[4].shader = defaultShader;
+            if(!materialReg[i].isLoaded()) materialReg[i].shader = defaultShader;
         }
         fboShader = Shader("res/fbo.vs", "res/fbo.fs");
         LOG_INFO("Setting parameters");
