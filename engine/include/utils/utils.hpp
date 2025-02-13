@@ -2,7 +2,7 @@
 #define FS_UTILS_H
 
 float lerp(float a, float b, float f) {
-    return a * (1.0 - f) + (b * f);
+    return a * (1.f - f) + (b * f);
 }
 
 #include <iostream>
@@ -16,6 +16,14 @@ std::vector<std::string> StrSplit(const std::string& tS, char tDelim) {
     while (std::getline(ss, item, tDelim)) {
         out.push_back(item);
     }
+    return out;
+}
+
+std::string StrReplace(std::string tOrig, char tChar, char tNewChar) {
+    std::vector<std::string> parts = StrSplit(tOrig, tChar);
+    std::string out = parts[0];
+    for (size_t i = 1; i < parts.size(); i++)
+        out += tNewChar + parts[i];
     return out;
 }
 

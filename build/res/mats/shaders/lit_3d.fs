@@ -165,7 +165,7 @@ void main() {
 		for(int s = 0; s < numSpotLights; s++)
 			result += calcSpotLight(s, diffMap, specMap, norm);
 		// emission
-		//result += (emisMap.rgb * material.emissionColor) * material.emissionFactor;
+		result += (emisMap.rgb * material.emissionColor) * material.emissionFactor;
 		// skybox
 		result += skyboxCalc;
 	} else result = diffMap.rgb;

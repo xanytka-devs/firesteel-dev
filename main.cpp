@@ -25,6 +25,7 @@ using namespace Firesteel;
 #define __STDC_LIB_EXT1__
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "../engine/include/utils/stb_image_write.hpp"
+#include "include/config.hpp"
 
 extern "C" {
 # include "engine/external/lua/include/lua.h"
@@ -40,7 +41,6 @@ float lastX = 800 / 2.0f;
 float lastY = 600 / 2.0f;
 bool firstMouse = true;
 
-int drawSelectMod = 0; // 0=Textures, 1=Lightning
 int drawMode = 0;
 int lightingMode = 3;
 bool wireframeEnabled = false;
@@ -71,12 +71,15 @@ bool sfxMuted = false;
 float preMuteGain = 0.0f;
 
 bool shdrParamMaterialGenPreview = false;
-bool threadsOpen = true;
+bool debugInfoOpen = true;
 bool texViewOpen = false;
 bool fullTexViewOpen = false;
+bool alreadyShownImgWarn = false;
 bool consoleOpen = false;
 bool consoleDevMode = false;
 bool switchedToDevConsole = false;
+bool themeningOpen = false;
+bool themeningEnabled = false;
 std::string consoleInput;
 std::string consoleLog;
 bool backupLogs = false;
@@ -97,7 +100,6 @@ float shaderSaturation = 0;
 float shaderHue = 0;
 bool autoExposure = false;
 float exposure = 1.0f, exposureRangeMin = 0.3f, exposureRangeMax = 2.5f, exposureMultiplyer = 1.1f;
-bool showBloomSampler = false;
 bool bloom = true;
 float bloomWeight = 1.f;
 bool vigiette = false;
@@ -116,6 +118,7 @@ size_t shaderKernelSize = 9;
 float temperature = 6500;
 float temperatureMix = 1;
 
+size_t heldEntityID = 0;
 EditorObject* heldEntity;
 ImGuizmo::MODE currentGizmoMode = ImGuizmo::WORLD;
 ImGuizmo::OPERATION currentGizmoOperation = ImGuizmo::TRANSLATE;
@@ -164,26 +167,15 @@ static void CreateScreenShot(unsigned int tWidth, unsigned int tHeight) {
     }
     else {
         stbi_flip_vertically_on_write(true);
-        if (choosenScreenShotFormat == 1) {
-            if (!stbi_write_png(screenShotPath.c_str(), width, height, 3, pixels.data(), 3 * (width))) {
-                LOG_ERRR("Couldn't create a screenshot at: " + screenShotPath);
-            } else LOG_INFO("Created a screenshot at: " + screenShotPath);
-        }
-        else if (choosenScreenShotFormat == 2) {
-            if (!stbi_write_jpg(screenShotPath.c_str(), width, height, 3, pixels.data(), 100)) {
-                LOG_ERRR("Couldn't create a screenshot at: " + screenShotPath);
-            } else LOG_INFO("Created a screenshot at: " + screenShotPath);
-        }
-        else if (choosenScreenShotFormat == 3) {
-            if (!stbi_write_bmp(screenShotPath.c_str(), width, height, 3, pixels.data())) {
-                LOG_ERRR("Couldn't create a screenshot at: " + screenShotPath);
-            } else LOG_INFO("Created a screenshot at: " + screenShotPath);
-        }
-        else if (choosenScreenShotFormat == 4) {
-            if (!stbi_write_tga(screenShotPath.c_str(), width, height, 3, pixels.data())) {
-                LOG_ERRR("Couldn't create a screenshot at: " + screenShotPath);
-            } else LOG_INFO("Created a screenshot at: " + screenShotPath);
-        }
+        bool couldCreate = true;
+
+        if (choosenScreenShotFormat == 1) couldCreate = stbi_write_png(screenShotPath.c_str(), width, height, 3, pixels.data(), 3 * (width));
+        else if (choosenScreenShotFormat == 2) couldCreate = stbi_write_jpg(screenShotPath.c_str(), width, height, 3, pixels.data(), 100);
+        else if (choosenScreenShotFormat == 3) couldCreate = stbi_write_bmp(screenShotPath.c_str(), width, height, 3, pixels.data());
+        else if (choosenScreenShotFormat == 4) couldCreate = stbi_write_tga(screenShotPath.c_str(), width, height, 3, pixels.data());
+
+        if (!couldCreate) { LOG_ERRR("Couldn't create a screenshot at: " + screenShotPath); }
+        else LOG_INFO("Created a screenshot at: " + screenShotPath);
         stbi_flip_vertically_on_write(false);
     }
 }
@@ -274,6 +266,7 @@ SpotLight sLight{
    glm::cos(glm::radians(20.5f)), // Outer cutoff.
 };
 bool sLightEnabled = false;
+std::filesystem::path lastPath;
 static void updateLightInShader(Shader* tShader) {
     tShader->enable();
     atmos.setParams(tShader);
@@ -282,17 +275,23 @@ static void updateLightInShader(Shader* tShader) {
     tShader->setInt("numSpotLights", sLightEnabled ? 1 : 0);
     sLight.setParams(tShader, 0);
 }
+bool winFocused = true;
+static void window_focus_callback(GLFWwindow* window, int focused) {
+    winFocused = (focused==1);
+}
 
 using namespace luabridge;
 class EditorApp : public App {
     std::vector<EditorObject> entities;
     std::vector<Material> materialReg;
+    std::vector<std::string> materialTypes;
 
     Texture billTex, pointLightBillTex;
     Framebuffer ppFBO, imguiFBO;
     Shader fboShader, defaultShader;
-    ParticleSystem pS = ParticleSystem(glm::vec3(0, 0, 0), 500, "res/particle.png", false);
+    ParticleSystem pS = ParticleSystem(glm::vec3(0, 0, 0), 500, "res/yeah.png", false);
     Cubemap sky;
+    imgui_conf imgConf;
 
     FSOAL::Source phoneAmbience;
     FSOAL::AudioLayer alSFX{};
@@ -303,7 +302,6 @@ class EditorApp : public App {
     ActionRegistry actions;
     lua_State* L = nullptr;
 
-    std::filesystem::path lastPath;
     // Reloads all default shaders.
     void reloadShaders() {
         LOG_INFO("'Shader reload' sequence initialized...");
@@ -346,6 +344,22 @@ class EditorApp : public App {
          return std::string("Extensions: ") + alcGetString(NULL, ALC_EXTENSIONS);
     }
 
+    void reloadFonts(bool firstLoad = false) {
+        if(firstLoad) imgConf.loadTheme(".theme.json");
+        FSImGui::LoadFont(imgConf.baseFont, imgConf.baseFontSize, true);
+        if(themeningEnabled && firstLoad) {
+            LOG_INFO("ImGui themes enabled");
+            imgConf.setTheme();
+        }
+        FSImGui::MD::LoadFonts("res/fonts/Ubuntu-Regular.ttf", "res/fonts/Ubuntu-Bold.ttf", 14, 15.4f);
+        ImGui::GetIO().Fonts->Build();
+        if (!firstLoad) {
+            //Reconstruct device.
+            ImGui_ImplOpenGL3_DestroyDeviceObjects();
+            ImGui_ImplOpenGL3_CreateDeviceObjects();
+        }
+    }
+
     virtual void onInitialize() override {
         window.setIconFromMemory(emb::img_fse_logo, sizeof(emb::img_fse_logo)/ sizeof(*emb::img_fse_logo));
         window.setClearColor(glm::vec3(0.0055f, 0.002f, 0.f));
@@ -356,6 +370,7 @@ class EditorApp : public App {
         t.loadFont("res/fonts/vgasysr.ttf", 16);
         // OpenGL setup.
         displayLoadingMsg("Initializing OpenGL", &materialReg[0].shader, &window);
+        glfwSetWindowFocusCallback(window.ptr(), window_focus_callback);
         glfwSetCursorPosCallback(window.ptr(), mouseCallback);
         glfwSetScrollCallback(window.ptr(), scrollCallback);
         // OpenAL setup.
@@ -366,6 +381,8 @@ class EditorApp : public App {
         LOG_INFO(std::string("	Device: ") + alcGetString(NULL, ALC_DEFAULT_DEVICE_SPECIFIER));
         // Shaders.
         displayLoadingMsg("Compiling shaders", &materialReg[0].shader, &window);
+        materialTypes.push_back("Lit");
+        materialTypes.push_back("Unlit");
         materialReg.push_back(Material().load("res/mats/billboard.material.json"));
         materialReg.push_back(Material().load("res/mats/particle.material.json"));
         materialReg.push_back(Material().load("res/mats/skybox.material.json"));
@@ -394,16 +411,15 @@ class EditorApp : public App {
         ppFBO = Framebuffer(window.getSize(), 2);
         imguiFBO = Framebuffer(window.getSize());
         ppFBO.quad();
-        if (!ppFBO.isComplete()) LOG_ERRR("FBO isn't complete");
-        if (!imguiFBO.isComplete()) LOG_ERRR("FBO isn't complete");
+        if(!ppFBO.isComplete()) LOG_ERRR("Post-processing FBO isn't complete");
+        if(!imguiFBO.isComplete()) LOG_ERRR("ImGui Scene FBO isn't complete");
         camera.farPlane = 1000;
         sceneWinSize = window.getSize();
         // ImGUI setup.
         LOG_INFO("Initializing ImGui");
         displayLoadingMsg("Initializing ImGui", &materialReg[0].shader, &window);
         FSImGui::Initialize(&window);
-        FSImGui::LoadFont("res/fonts/Ubuntu-Regular.ttf", 14, true);
-        FSImGui::MD::LoadFonts("res/fonts/Ubuntu-Regular.ttf", "res/fonts/Ubuntu-Bold.ttf", 14, 15.4f);
+        reloadFonts(true);
         LOG_INFO("ImGui ready");
         newsTxtLoaded = StrFromFile("News.md");
         //LuaBridge.
@@ -504,19 +520,29 @@ class EditorApp : public App {
         lastPath=std::filesystem::current_path();
         window.setClearColor(glm::vec3(0));
         window.setTitle((didSaveCurPrj?"":"*") + lastPath.u8string() + " | Firesteel " + GLOBAL_VER);
+        glfwRequestWindowAttention(window.ptr());
     }
     virtual void onUpdate() override {
-        if (!drawImGUI) if (ppFBO.getSize() != window.getSize()) {
+        //if (!winFocused) {
+        //    window.setClearColor(glm::vec3(1, 0, 0));
+        //    return;
+        //}
+        window.setClearColor(glm::vec3(0));
+        if(!drawImGUI) if(ppFBO.getSize() != window.getSize()) {
                 ppFBO.scale(window.getSize());
                 camera.aspect = ppFBO.aspect();
             }
         glViewport(0, 0, static_cast<GLsizei>(ppFBO.getWidth()), static_cast<GLsizei>(ppFBO.getHeight()));
         glDisable(GL_FRAMEBUFFER_SRGB);
         std::thread GPUThreadT(_gpuThreadTimer);
+        if(imgConf.shouldReloadFonts) {
+            imgConf.shouldReloadFonts = false;
+            reloadFonts();
+        }
         /* Input processing */ {
             processInput(&window, window.ptr(), deltaTime);
             audio.setPostion(camera.pos);
-            if (glfwGetMouseButton(window.ptr(), 1) != GLFW_PRESS) window.setCursorMode(Window::CUR_NORMAL);
+            if(glfwGetMouseButton(window.ptr(), 1) != GLFW_PRESS) window.setCursorMode(Window::CUR_NORMAL);
             else window.setCursorMode(Window::CUR_DISABLED);
             ppFBO.bind();
             updateLightInShader(&materialReg[4].shader);
@@ -537,14 +563,15 @@ class EditorApp : public App {
                 materialReg[i].setMat4("view", view);
                 materialReg[i].setVec3("viewPos", camera.pos);
                 materialReg[i].setInt("drawMode", drawMode);
-                materialReg[i].setInt("time", (float)glfwGetTime());
+                materialReg[i].setInt("time", static_cast<int>(glfwGetTime()));
+                if(materialReg[i].type == 0) {
+                    materialReg[i].setInt("lightingType", lightingMode);
+                    materialReg[i].setInt("skybox", 11);
+                    materialReg[i].setVec3("spotLights[0].position", sLight.position);
+                    materialReg[i].setVec3("spotLights[0].direction", sLight.direction);
+                }
             }
             sky.bind();
-            materialReg[4].enable();
-            materialReg[4].setInt("lightingType", lightingMode);
-            materialReg[4].setInt("skybox", 11);
-            materialReg[4].setVec3("spotLights[0].position", sLight.position);
-            materialReg[4].setVec3("spotLights[0].direction", sLight.direction);
             defaultShader.enable();
             defaultShader.setVec2("resolution", ppFBO.getSize());
         }
@@ -582,31 +609,30 @@ class EditorApp : public App {
             pS.draw(&materialReg[3].shader);
         }
         /* Render backpack */ {
-            materialReg[4].enable();
-            materialReg[4].setFloat("material.emissionFactor", 2.5f);
-            //city.draw(modelShader);
+            entities[0].material.enable();
+            entities[0].material.setFloat("material.emissionFactor", 2.5f);
             entities[0].draw();
         }
         /* Render box */ {
             entities[2].entity.transform.Rotation = glm::vec3((float)glfwGetTime() * -10.0f);
-            materialReg[4].setVec3("material.emissionColor", glm::vec3(0.0f, 0.5f, 0.69f));
+            entities[2].material.enable();
+            entities[2].material.setVec3("material.emissionColor", glm::vec3(0.0f, 0.5f, 0.69f));
             entities[2].draw();
         }
         /* Render phone booth */ {
-            materialReg[4].enable();
-            materialReg[4].setVec3("material.emissionColor", glm::vec3(1));
+            entities[3].material.enable();
+            entities[3].material.setVec3("material.emissionColor", glm::vec3(1));
             entities[3].draw();
         }
         /* Draw FBO */ {
             ppFBO.unbind();
             glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
             fboShader.enable();
-            fboShader.setBool("showBloomSampler", showBloomSampler);
             fboShader.setBool("bloom", bloom);
             fboShader.setBool("invertColors", invertColors);
             fboShader.setBool("vigiette", vigiette);
             fboShader.setBool("useKernel", useShaderKernel);
-            if(useShaderKernel) for (size_t i = 0; i < shaderKernelSize; i++)
+            if(useShaderKernel) for(size_t i = 0; i < shaderKernelSize; i++)
                 fboShader.setFloat("shaderKernel[" + std::to_string(i) + "]", shaderKernel[i]);
             fboShader.setInt("AAMethod", isAAEnabled?1:0);
             fboShader.setFloat("exposure", exposure);
@@ -644,13 +670,13 @@ class EditorApp : public App {
             }
             ppFBO.drawQuad(&fboShader);
             /* Screenshot */ {
-                if (needToScreenShot) {
+                if(needToScreenShot) {
                     CreateScreenShot(static_cast<unsigned int>(ppFBO.getSize().x),
                         static_cast<unsigned int>(ppFBO.getSize().y));
                     needToScreenShot = false;
                 }
             }
-            if (drawImGUI) {
+            if(drawImGUI) {
                 imguiFBO.unbind();
                 window.clearBuffers();
             }
@@ -675,23 +701,20 @@ class EditorApp : public App {
                 t.draw(&materialReg[0].shader, "[Wheel] FOV: " + std::to_string((int)camera.fov),
                     ppFBO.getSize(), glm::vec2(10.0f, 525.0f), glm::vec2(1.f), glm::vec3(1, 0, 0));
 
-                if (drawSelectMod == 0) {
-                    t.draw(&materialReg[0].shader, "[1-0] Shading: " + getDrawModName(),
-                        ppFBO.getSize(), glm::vec2(8.0f, 508.0f), glm::vec2(1.f), glm::vec3(0));
-                    t.draw(&materialReg[0].shader, "[1-0] Shading: " + getDrawModName(),
-                        ppFBO.getSize(), glm::vec2(10.0f, 510.0f), glm::vec2(1.f), glm::vec3(1, 0, 0));
-                }
-                else {
-                    t.draw(&materialReg[0].shader, "[1-4] Lighting: " + getLightingTypeName(),
-                        ppFBO.getSize(), glm::vec2(8.0f, 508.0f), glm::vec2(1.f), glm::vec3(0));
-                    t.draw(&materialReg[0].shader, "[1-4] Lighting: " + getLightingTypeName(),
-                        ppFBO.getSize(), glm::vec2(10.0f, 510.0f), glm::vec2(1.f), glm::vec3(1, 0, 0));
-                }
+                t.draw(&materialReg[0].shader, "[1-0] Shading: " + getDrawModName(),
+                    ppFBO.getSize(), glm::vec2(8.0f, 508.0f), glm::vec2(1.f), glm::vec3(0));
+                t.draw(&materialReg[0].shader, "[1-0] Shading: " + getDrawModName(),
+                    ppFBO.getSize(), glm::vec2(10.0f, 510.0f), glm::vec2(1.f), glm::vec3(1, 0, 0));
+
+                t.draw(&materialReg[0].shader, "[1-4] Lighting: " + getLightingTypeName(),
+                    ppFBO.getSize(), glm::vec2(8.0f, 493.0f), glm::vec2(1.f), glm::vec3(0));
+                t.draw(&materialReg[0].shader, "[1-4] Lighting: " + getLightingTypeName(),
+                    ppFBO.getSize(), glm::vec2(10.0f, 495.0f), glm::vec2(1.f), glm::vec3(1, 0, 0));
             }
         }
         unsigned int imguiW=0, imguiH=0;
         /* Draw ImGui */ {
-            if (drawImGUI) {
+            if(drawImGUI) {
                 //glEnable(GL_FRAMEBUFFER_SRGB);
                 std::thread ImGuiThreadT(_imguiThreadTimer);
                 // Start the Dear ImGui frame
@@ -739,6 +762,10 @@ class EditorApp : public App {
                             }
                         }
                         ImGui::Separator();
+                        if (ImGui::MenuItem(u8"Открыть демо-сцену")) {
+
+                        }
+                        ImGui::Separator();
                         if (ImGui::MenuItem(u8"Закрыть (Esc)")) window.close();
                         ImGui::EndMenu();
                     }
@@ -749,17 +776,19 @@ class EditorApp : public App {
                         ImGui::Checkbox(u8"Миксер аудио", &soundMixerOpen);
                         ImGui::Checkbox(u8"Новости", &newsViewOpen);
                         ImGui::Checkbox(u8"Просмотр сцены", &sceneViewOpen);
+                        ImGui::Checkbox(u8"Редактор объектов", &entityEditorOpen);
                         ImGui::Checkbox(u8"Свет", &lightingOpen);
                         ImGui::Checkbox(u8"Содержимое сцены", &sceneContentViewOpen);
-                        ImGui::Checkbox(u8"Редактор объектов", &entityEditorOpen);
-                        ImGui::Separator();
-                        if (ImGui::MenuItem(u8"Скриншот")) needToScreenShot = AskForScreenShot();
-                        if (ImGui::MenuItem(u8"Скриншот Редактора")) needToScreenShotEditor = AskForScreenShot();
-                        std::filesystem::current_path(lastPath);
+                        if(themeningEnabled) ImGui::Checkbox(u8"Редактор темы", &themeningOpen);
+                        else themeningOpen=false;
                         if (ImGui::MenuItem(u8"Сбросить")) {
                             texViewOpen = false;
                             newsViewOpen = true;
                         }
+                        ImGui::Separator();
+                        if (ImGui::MenuItem(u8"Скриншот")) needToScreenShot = AskForScreenShot();
+                        if (ImGui::MenuItem(u8"Скриншот Редактора")) needToScreenShotEditor = AskForScreenShot();
+                        std::filesystem::current_path(lastPath);
                         ImGui::EndMenu();
                     }
                     if (ImGui::BeginMenu(u8"Помощь")) {
@@ -771,9 +800,8 @@ class EditorApp : public App {
                         ImGui::EndMenu();
                     }
                     if (ImGui::BeginMenu(u8"Тестирование")) {
-                        if(ImGui::Button(u8"Перезагрузить шейдеры")) reloadShaders();
+                        if(ImGui::MenuItem(u8"Перезагрузить шейдеры")) reloadShaders();
                         ImGui::Checkbox("Wireframe", &wireframeEnabled);
-                        ImGui::Checkbox(u8"Показать текстуру свечения", &showBloomSampler);
                         ImGui::Separator();
                         ImGui::Checkbox(u8"Генерация параметров шейдеров", &shdrParamMaterialGenPreview);
                         if (ImGui::IsItemHovered()) {
@@ -783,14 +811,19 @@ class EditorApp : public App {
                             ImGui::EndTooltip();
                         }
                         ImGui::Checkbox(u8"Консоль разработчика", &consoleDevMode);
+                        if(ImGui::Checkbox(u8"Поддержка тем", &themeningEnabled)) {
+                            if(themeningEnabled) imgConf.setTheme();
+                            else ImGui::StyleColorsDark();
+                        }
                         ImGui::Checkbox(u8"Просмотр текстур", &texViewOpen);
                         ImGui::Checkbox(u8"Создавать бэкапы логов", &backupLogs);
-                        ImGui::Checkbox(u8"Статистика потоков", &threadsOpen);
+                        ImGui::Checkbox(u8"Статистика потоков", &debugInfoOpen);
                         ImGui::Separator();
                         if (ImGui::MenuItem(u8"Переключить Нативный UI")) { drawNativeUI = !drawNativeUI; }
                         if (ImGui::MenuItem(u8"Выключить ImGui")) {
                             drawImGUI = false;
-                            LOG_INFO("ImGui rendering sequence disabled.\n    To enable it back... IDK, restart, maybe?");
+                            if(!alreadyShownImgWarn) LOG_INFO("ImGui rendering sequence disabled - To enable it back press LCtrl+LAlt+I");
+                            alreadyShownImgWarn = true;
                         }
                         ImGui::EndMenu();
                     }
@@ -801,12 +834,12 @@ class EditorApp : public App {
                 }
                 ImGui::End();
 
-                if (newsViewOpen) {
+                if(newsViewOpen) {
                     ImGui::Begin("News", &newsViewOpen);
                     FSImGui::MD::Text(newsTxtLoaded);
                     ImGui::End();
                 }
-                if (infoPanelOpen) {
+                if(infoPanelOpen) {
                     ImGui::Begin("Info", &infoPanelOpen);
                     auto windowWidth = ImGui::GetWindowSize().x;
                     auto textWidth = ImGui::CalcTextSize(u8"Авторы редактора").x;
@@ -855,7 +888,7 @@ class EditorApp : public App {
                     ImGui::TextLinkOpenURL("OpenAL Soft", "https://github.com/kcat/openal-soft");
                     ImGui::End();
                 }
-                if (sceneViewOpen) {
+                if(sceneViewOpen) {
                     ImGui::PopStyleVar(3);
                     ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
                     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
@@ -911,152 +944,169 @@ class EditorApp : public App {
                     }
                     ImGui::End();
                 }
-                if (entityEditorOpen) {
+                if(entityEditorOpen) {
                     ImGui::Begin("Entity Editor", &entityEditorOpen);
                     if (heldEntity) {
                         ImGui::InputText("Name", &heldEntity->name);
-                        if(ImGui::CollapsingHeader(u8"Положение", ImGuiTreeNodeFlags_DefaultOpen)) {
-                            FSImGui::DragFloat3(u8"Позиция", &heldEntity->entity.transform.Position);
-                            FSImGui::DragFloat3(u8"Вращение", &heldEntity->entity.transform.Rotation);
-                            FSImGui::DragFloat3(u8"Размер", &heldEntity->entity.transform.Size);
+                        ImGui::SameLine();
+                        bool indeletion = false;
+                        if(ImGui::Button("X##delentity")) {
+                            heldEntity->remove();
+                            heldEntity = nullptr;
+                            entities.erase(std::next(entities.begin(), heldEntityID));
+                            heldEntityID = 0;
+                            indeletion=true;
                         }
-                        if(heldEntity->entity.hasModel()) if(ImGui::CollapsingHeader(u8"Модель", ImGuiTreeNodeFlags_DefaultOpen)) {
-                            ImGui::Text(heldEntity->entity.model.path.c_str());
-                            ImGui::SameLine();
-                            if (ImGui::Button("...##model_exchange")) {
-                                LOG_INFO("Opening dialog for model selection (Entity:\"" + heldEntity->name + "\")");
-                                FileDialog fd;
-                                fd.filter = "All\0*.*\0OBJ Model (*.obj)\0*.obj\0FBX Model (*.fbx)\0*.fbx\0GLTF Model (*.gltf)\0*.gltf\0";
-                                fd.filter_id = 2;
-                                fd.path = heldEntity->entity.model.directory.c_str();
-                                std::string modelPath = fd.open();
-                                if (modelPath != "") {
-                                    std::filesystem::current_path(lastPath);
-                                    LOG_INFO("Model at \"" + modelPath + "\" does exist. Exchanging...");
-                                    heldEntity->entity.clearMeshes();
-                                    heldEntity->entity.loadFromFile(modelPath);
-                                }
+                        if(!indeletion) {
+                            if(ImGui::CollapsingHeader(u8"Положение", ImGuiTreeNodeFlags_DefaultOpen)) {
+                                FSImGui::DragFloat3(u8"Позиция", &heldEntity->entity.transform.Position);
+                                FSImGui::DragFloat3(u8"Вращение", &heldEntity->entity.transform.Rotation);
+                                FSImGui::DragFloat3(u8"Размер", &heldEntity->entity.transform.Size);
                             }
-                            ImGui::SameLine();
-                            if (ImGui::Button("X")) heldEntity->entity.clearMeshes();
-                            if (ImGui::CollapsingHeader(u8"Материал")) {
-                                Material mat = heldEntity->material;
-                                ImGui::Text(mat.name.c_str());
-                                ImGui::Text(mat.path.c_str());
+                            if(heldEntity->entity.hasModel()) if (ImGui::CollapsingHeader(u8"Модель", ImGuiTreeNodeFlags_DefaultOpen)) {
+                                ImGui::Text(heldEntity->entity.model.path.c_str());
                                 ImGui::SameLine();
-                                if(ImGui::Button("...##shdr_exchange")) {
-                                    LOG_INFO("Opening dialog for shader selection (Entity:\"" + heldEntity->name + "\")");
+                                if(ImGui::Button("...##model_exchange")) {
+                                    LOG_INFO("Opening dialog for model selection (Entity:\"" + heldEntity->name + "\")");
                                     FileDialog fd;
-                                    fd.filter = "All\0*.*\0Material (*.material.json)\0*.material.json\0";
+                                    fd.filter = "All\0*.*\0OBJ Model (*.obj)\0*.obj\0FBX Model (*.fbx)\0*.fbx\0GLTF Model (*.gltf)\0*.gltf\0";
                                     fd.filter_id = 2;
                                     fd.path = heldEntity->entity.model.directory.c_str();
-                                    std::string shaderPath = fd.open();
-                                    if (shaderPath != "") {
+                                    std::string modelPath = fd.open();
+                                    if(modelPath != "") {
                                         std::filesystem::current_path(lastPath);
-                                        LOG_INFO("Shader at \"" + shaderPath + "\" does exist. Exchanging...");
+                                        LOG_INFO("Model at \"" + modelPath + "\" does exist. Exchanging...");
+                                        heldEntity->entity.clearMeshes();
+                                        heldEntity->entity.loadFromFile(modelPath);
                                     }
                                 }
-                                if (shdrParamMaterialGenPreview) {
-                                    GLint count, i, size;
-                                    GLenum type;
-                                    const GLsizei bufSize = 40;
-                                    GLchar name[bufSize];
-                                    GLsizei length;
-                                    glGetProgramiv(mat.shader.ID, GL_ACTIVE_UNIFORMS, &count);
-                                    ImGui::Text(("Active Uniforms: " + std::to_string(count)).c_str());
+                                ImGui::SameLine();
+                                if(ImGui::Button("X##delmaterial")) heldEntity->entity.clearMeshes();
+                                if(ImGui::CollapsingHeader(u8"Материал")) {
+                                    Material mat = heldEntity->material;
+                                    ImGui::Text((u8"Название: " + mat.name).c_str());
+                                    ImGui::Text((u8"Тип: " + materialTypes[mat.type]).c_str());
+                                    ImGui::Text((u8"Путь: " + mat.path).c_str());
+                                    ImGui::SameLine();
+                                    if(ImGui::Button("...##shdr_exchange")) {
+                                        LOG_INFO("Opening dialog for shader selection (Entity:\"" + heldEntity->name + "\")");
+                                        FileDialog fd;
+                                        fd.filter = "All\0*.*\0Material (*.material.json)\0*.material.json\0";
+                                        fd.filter_id = 2;
+                                        fd.path = heldEntity->entity.model.directory.c_str();
+                                        std::string shaderPath = fd.open();
+                                        if(shaderPath != "") {
+                                            std::filesystem::current_path(lastPath);
+                                            LOG_INFO("Shader at \"" + shaderPath + "\" does exist. Exchanging...");
+                                        }
+                                    }
+                                    if(shdrParamMaterialGenPreview) {
+                                        GLint count, i, size;
+                                        GLenum type;
+                                        const GLsizei bufSize = 40;
+                                        GLchar name[bufSize];
+                                        GLsizei length;
+                                        glGetProgramiv(mat.shader.ID, GL_ACTIVE_UNIFORMS, &count);
+                                        ImGui::Text(("Active Uniforms: " + std::to_string(count)).c_str());
 
-                                    mat.enable();
-                                    for (i = 0; i < count; i++) {
-                                        glGetActiveUniform(mat.shader.ID, (GLuint)i, bufSize, &length, &size, &type, name);
-                                        GLint loc = glGetUniformLocation(mat.shader.ID, name);
-                                        LOG_INFO(std::to_string(loc) + " " + name);
-                                        GLint paramI;
-                                        GLfloat paramF;
-                                        float paramFs[4] = { 0,0,0,0 };
-                                        bool val = false;
-                                        if (StrSplit(name, '.').size() == 1) {
-                                            switch (type) {
-                                            case GL_FLOAT_MAT2:
-                                                break;
-                                            case GL_FLOAT_MAT3:
-                                                break;
-                                            case GL_FLOAT_MAT4:
-                                                break;
-                                            case GL_BOOL:
-                                                glGetUniformiv(mat.shader.ID, loc, &paramI);
-                                                val = paramI == 1;
-                                                ImGui::Checkbox(name, &val);
-                                                mat.setBool(name, val);
-                                                break;
-                                            case GL_INT:
-                                                glGetUniformiv(mat.shader.ID, loc, &paramI);
-                                                ImGui::DragInt(name, &paramI);
-                                                mat.setInt(name, paramI);
-                                                break;
-                                            case GL_FLOAT:
-                                                glGetUniformfv(mat.shader.ID, loc, &paramF);
-                                                ImGui::DragFloat(name, &paramF);
-                                                mat.setInt(name, paramF);
-                                                break;
-                                            case GL_FLOAT_VEC2:
-                                                glGetUniformfv(mat.shader.ID, loc, paramFs);
-                                                FSImGui::DragLFloat2(name, paramFs[0], paramFs[1]);
-                                                mat.setVec2(name, paramFs[0], paramFs[1]);
-                                                break;
-                                            case GL_FLOAT_VEC3:
-                                                glGetUniformfv(mat.shader.ID, loc, paramFs);
-                                                FSImGui::DragLFloat3(name, paramFs[0], paramFs[1], paramFs[2]);
-                                                mat.setVec3(name, paramFs[0], paramFs[1], paramFs[2]);
-                                                break;
-                                            case GL_FLOAT_VEC4:
-                                                glGetUniformfv(mat.shader.ID, loc, paramFs);
-                                                FSImGui::DragLFloat4(name, paramFs[0], paramFs[1], paramFs[2], paramFs[3]);
-                                                mat.setVec4(name, paramFs[0], paramFs[1], paramFs[2], paramFs[3]);
-                                                break;
-                                            default:
-                                                ImGui::Text((std::string(" Name: ") + name + " Type: " + std::to_string(type)).c_str());
-                                                break;
+                                        mat.enable();
+                                        for(i = 0; i < count; i++) {
+                                            glGetActiveUniform(mat.shader.ID, (GLuint)i, bufSize, &length, &size, &type, name);
+                                            GLint loc = glGetUniformLocation(mat.shader.ID, name);
+                                            LOG_INFO(std::to_string(loc) + " " + name);
+                                            GLint paramI;
+                                            GLfloat paramF;
+                                            float paramFs[4] = { 0,0,0,0 };
+                                            bool val = false;
+                                            if(StrSplit(name, '.').size() == 1) {
+                                                switch (type) {
+                                                case GL_FLOAT_MAT2:
+                                                    break;
+                                                case GL_FLOAT_MAT3:
+                                                    break;
+                                                case GL_FLOAT_MAT4:
+                                                    break;
+                                                case GL_BOOL:
+                                                    glGetUniformiv(mat.shader.ID, loc, &paramI);
+                                                    val = paramI == 1;
+                                                    ImGui::Checkbox(name, &val);
+                                                    mat.setBool(name, val);
+                                                    break;
+                                                case GL_INT:
+                                                    glGetUniformiv(mat.shader.ID, loc, &paramI);
+                                                    ImGui::DragInt(name, &paramI);
+                                                    mat.setInt(name, paramI);
+                                                    break;
+                                                case GL_FLOAT:
+                                                    glGetUniformfv(mat.shader.ID, loc, &paramF);
+                                                    ImGui::DragFloat(name, &paramF);
+                                                    mat.setFloat(name, paramF);
+                                                    break;
+                                                case GL_FLOAT_VEC2:
+                                                    glGetUniformfv(mat.shader.ID, loc, paramFs);
+                                                    FSImGui::DragLFloat2(name, paramFs[0], paramFs[1]);
+                                                    mat.setVec2(name, paramFs[0], paramFs[1]);
+                                                    break;
+                                                case GL_FLOAT_VEC3:
+                                                    glGetUniformfv(mat.shader.ID, loc, paramFs);
+                                                    FSImGui::DragLFloat3(name, paramFs[0], paramFs[1], paramFs[2]);
+                                                    mat.setVec3(name, paramFs[0], paramFs[1], paramFs[2]);
+                                                    break;
+                                                case GL_FLOAT_VEC4:
+                                                    glGetUniformfv(mat.shader.ID, loc, paramFs);
+                                                    FSImGui::DragLFloat4(name, paramFs[0], paramFs[1], paramFs[2], paramFs[3]);
+                                                    mat.setVec4(name, paramFs[0], paramFs[1], paramFs[2], paramFs[3]);
+                                                    break;
+                                                default:
+                                                    ImGui::Text((std::string(" Name: ") + name + " Type: " + std::to_string(type)).c_str());
+                                                    break;
+                                                }
                                             }
                                         }
                                     }
-                                }
-                                ImGui::Text(u8"Текстуры");
-                                for (size_t i = 0; i < heldEntity->entity.model.textures.size(); i++) {
-                                    ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(0.0f, 0.0f));
-                                    if (ImGui::ImageButton(("##" + heldEntity->entity.model.textures[i].type + std::to_string(i) + "_img").c_str(),
-                                        (ImTextureID)(size_t)heldEntity->entity.model.textures[i].ID, ImVec2(20, 20))) {
-                                        std::filesystem::current_path(lastPath);
-                                        LOG_INFO("Opening dialog for texture selection (Entity:\"" + heldEntity->name + "\")");
-                                        FileDialog fd;
-                                        fd.filter = "All\0*.*\0PNG Image (*.png)\0*.png\0JPEG Image (*.jpg)\0*.jpg\0";
-                                        fd.filter_id = 2;
-                                        std::string texPath = fd.open();
-                                        if (texPath != "") {
-                                            LOG_INFO("Texture at \"" + texPath + "\" does exist. Exchanging...");
-                                            heldEntity->entity.model.textures[i].remove();
-                                            Texture t;
-                                            t.ID = TextureFromFile(texPath);
-                                            t.type = heldEntity->entity.model.textures[i].type;
-                                            t.path = texPath;
-                                            heldEntity->entity.model.textures[i] = t;
+                                    ImGui::Text(u8"Текстуры");
+                                    for(size_t i = 0; i < heldEntity->entity.model.textures.size(); i++) {
+                                        ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(0.0f, 0.0f));
+                                        if(ImGui::ImageButton(("##" + heldEntity->entity.model.textures[i].type + std::to_string(i) + "_img").c_str(),
+                                            (ImTextureID)(size_t)heldEntity->entity.model.textures[i].ID, ImVec2(20, 20))) {
+                                            std::filesystem::current_path(lastPath);
+                                            LOG_INFO("Opening dialog for texture selection (Entity:\"" + heldEntity->name + "\")");
+                                            FileDialog fd;
+                                            fd.filter = "All\0*.*\0PNG Image (*.png)\0*.png\0JPEG Image (*.jpg)\0*.jpg\0";
+                                            fd.filter_id = 2;
+                                            std::string texPath = fd.open();
+                                            if(texPath != "") {
+                                                LOG_INFO("Texture at \"" + texPath + "\" does exist. Exchanging...");
+                                                heldEntity->entity.model.textures[i].remove();
+                                                Texture t;
+                                                t.ID = TextureFromFile(texPath);
+                                                t.type = heldEntity->entity.model.textures[i].type;
+                                                t.path = texPath;
+                                                heldEntity->entity.model.textures[i] = t;
+                                            }
                                         }
+                                        ImGui::PopStyleVar(1);
+                                        ImGui::SameLine();
+                                        ImGui::Text((heldEntity->entity.model.textures[i].type + "_" + std::to_string(i)).c_str());
                                     }
-                                    ImGui::PopStyleVar(1);
-                                    ImGui::SameLine();
-                                    ImGui::Text((heldEntity->entity.model.textures[i].type + "_" + std::to_string(i)).c_str());
                                 }
                             }
                         }
                     }
                     ImGui::End();
                 }
-                if (sceneContentViewOpen) {
+                if(sceneContentViewOpen) {
                     ImGui::Begin("Scene Content", &sceneContentViewOpen);
-                    for (size_t i = 0; i < entities.size(); i++)
-                        if(ImGui::Button(entities[i].name.c_str())) heldEntity = &entities[i];
+                    for (size_t i = 0; i < entities.size(); i++) {
+                        bool a = (heldEntityID == i);
+                        if(ImGui::MenuItem(entities[i].name.c_str(), (const char*)0, &a)) {
+                            heldEntityID = i;
+                            heldEntity = &entities[i];
+                        }
+                    }
                     ImGui::End();
                 }
-                if (atmosphereOpen) {
+                if(atmosphereOpen) {
                     ImGui::Begin("Atmosphere", &atmosphereOpen);
                     if (ImGui::CollapsingHeader("Directional Light")) {
                         FSImGui::DragFloat3("Direction", &atmos.directionalLight.direction);
@@ -1101,7 +1151,7 @@ class EditorApp : public App {
                         ImGui::DragFloat("Exposure", &exposure, 0.05f, 0, 10);
                         ImGui::EndDisabled();
                         ImGui::Checkbox("Auto exposure", &autoExposure);
-                        if (ImGui::IsItemHovered()) {
+                        if(ImGui::IsItemHovered()) {
                             ImGui::BeginTooltip();
                             ImGui::Text(u8"Экспериментальная функция");
                             ImGui::Text(u8"Может резко снизить FPS.");
@@ -1111,7 +1161,7 @@ class EditorApp : public App {
                             FSImGui::DragLFloat2("Exposure range", exposureRangeMin, exposureRangeMax);
                             ImGui::DragFloat("Exposure multiplyer", &exposureMultiplyer);
                         }
-                        if (exposure < 0) exposure = 0;
+                        if(exposure < 0) exposure = 0;
                         ImGui::Separator();
 
                         ImGui::Checkbox("Bloom", &bloom);
@@ -1165,7 +1215,7 @@ class EditorApp : public App {
 
                     ImGui::End();
                 }
-                if (soundMixerOpen) {
+                if(soundMixerOpen) {
                     ImGui::Begin("Sound Mixer", &soundMixerOpen);
                     {
                         ImGui::BeginGroup();
@@ -1224,7 +1274,7 @@ class EditorApp : public App {
                     }
                     ImGui::End();
                 }
-                if (lightingOpen) {
+                if(lightingOpen) {
                     ImGui::Begin("Lighting", &lightingOpen);
                     if (ImGui::CollapsingHeader("Point Light [1]")) {
                         FSImGui::DragFloat3("Position##pl0", &pLight.position);
@@ -1246,7 +1296,7 @@ class EditorApp : public App {
                     }
                     ImGui::End();
                 }
-                if (undoHistoryOpen) {
+                if(undoHistoryOpen) {
                     ImGui::Begin("Undo History", &undoHistoryOpen);
                     for (size_t i = 0; i < 4; i++)
                     {
@@ -1257,7 +1307,7 @@ class EditorApp : public App {
                     ImGui::End();
                 }
 
-                if (texViewOpen) {
+                if(texViewOpen) {
                     ImGui::Begin("Texture Viewer", &texViewOpen);
                     float wW = ImGui::GetWindowWidth();
                     int column = 3;
@@ -1288,7 +1338,7 @@ class EditorApp : public App {
                     glActiveTexture(GL_TEXTURE0);
                     ImGui::End();
                 }
-                if (fullTexViewOpen) {
+                if(fullTexViewOpen) {
                     ImGui::Begin("Full Texture Viewer", &fullTexViewOpen);
                     glActiveTexture(GL_TEXTURE10);
                     glBindTexture(GL_TEXTURE_2D, texID);
@@ -1297,7 +1347,7 @@ class EditorApp : public App {
                     glActiveTexture(GL_TEXTURE0);
                     ImGui::End();
                 }
-                if (consoleOpen) {
+                if(consoleOpen) {
                     ImGui::Begin("Console", &consoleOpen);
                     if (consoleDevMode) {
                         if (ImGui::Button(u8"Ошибки")) switchedToDevConsole = false;
@@ -1370,28 +1420,35 @@ class EditorApp : public App {
                     }
                     ImGui::End();
                 }
+                if(themeningEnabled && themeningOpen) imgConf.drawThemeEditor(&themeningOpen);
 
-                if (drawImGUI) {
+                if(drawImGUI) {
                     threadRuntime[0] = false;
                     GPUThreadT.join();
                 }
                 threadRuntime[2] = false;
                 ImGuiThreadT.join();
-                if (threadsOpen) {
-                    ImGui::Begin("Threads", &threadsOpen);
+                if(debugInfoOpen) {
+                    ImGui::Begin("Debug Info", &debugInfoOpen);
                     ImGui::Text(("FPS: " + std::to_string(fps)).c_str());
                     ImGui::Text(("Delta time: " + std::to_string(deltaTime)).c_str());
                     ImGui::Separator();
-                    ImGui::Text(("GPU Thread: " + std::to_string(_gpuThreadTime)).c_str());
-                    ImGui::Text(("Draw Thread: " + std::to_string(_drawThreadTime)).c_str());
-                    ImGui::Text(("ImGui Thread: " + std::to_string(_imguiThreadTime)).c_str());
+                    if (ImGui::CollapsingHeader("Threads")) {
+                        ImGui::Text(("Draw (OpenGL): " + std::to_string(_drawThreadTime)).c_str());
+                        ImGui::Text(("ImGui: " + std::to_string(_imguiThreadTime)).c_str());
+                        ImGui::Text(("GPU Total: " + std::to_string(_gpuThreadTime)).c_str());
+                    }
+                    ImGui::Separator();
+                    ImGui::Text("Display");
+                    ImGui::DragInt("Draw Mode", &drawMode, 1, 0, 9);
+                    ImGui::DragInt("Lighting", &lightingMode, 1, 0, 3);
                     ImGui::End();
                 }
 
                 // Rendering
                 FSImGui::Render(&window);
             }
-            if (!drawImGUI) {
+            if(!drawImGUI) {
                 threadRuntime[0] = false;
                 GPUThreadT.join();
             }
@@ -1405,7 +1462,7 @@ class EditorApp : public App {
                 }
             }
         }
-        if (glfwGetKey(window.ptr(), GLFW_KEY_F5) == GLFW_PRESS) reloadShaders();
+        if(glfwGetKey(window.ptr(), GLFW_KEY_F5) == GLFW_PRESS) reloadShaders();
     }
     virtual void onShutdown() override {
         getGlobal(L, "onend")();
@@ -1413,6 +1470,7 @@ class EditorApp : public App {
         loadedW = window.getWidth();
         loadedH = window.getHeight();
         FSImGui::Shutdown();
+        if(themeningEnabled) imgConf.saveTheme(".theme.json");
         LOG_INFO("ImGui terminated");
         // OpenAL.
         phoneAmbience.remove();
@@ -1440,13 +1498,15 @@ static void saveConfig() {
     txt["dev"]["consoleDevMode"] = consoleDevMode;
     txt["dev"]["backupLogs"] = backupLogs;
     txt["dev"]["shdrParamMaterialGenPreview"] = shdrParamMaterialGenPreview;
+    txt["dev"]["themeningEnabled"] = themeningEnabled;
+    txt["dev"]["themeningOpen"] = themeningOpen;
 
     txt["layout"]["atmosphere"] = atmosphereOpen;
     txt["layout"]["console"] = consoleOpen;
     txt["layout"]["entityEditor"] = entityEditorOpen;
     txt["layout"]["infoPanel"] = infoPanelOpen;
     txt["layout"]["lighting"] = lightingOpen;
-    txt["layout"]["metrics"] = threadsOpen;
+    txt["layout"]["metrics"] = debugInfoOpen;
     txt["layout"]["sceneContentView"] = sceneContentViewOpen;
     txt["layout"]["sceneView"] = sceneViewOpen;
     txt["layout"]["soundMixer"] = soundMixerOpen;
@@ -1471,6 +1531,8 @@ static void loadConfig() {
         if(!txt["dev"]["backupLogs"].is_null())                     backupLogs = txt["dev"]["backupLogs"];
         if(!txt["dev"]["consoleDevMode"].is_null())                 consoleDevMode = txt["dev"]["consoleDevMode"];
         if(!txt["dev"]["shdrParamMaterialGenPreview"].is_null())    shdrParamMaterialGenPreview = txt["dev"]["shdrParamMaterialGenPreview"];
+        if(!txt["dev"]["themeningEnabled"].is_null())               themeningEnabled = txt["dev"]["themeningEnabled"];
+        if(!txt["dev"]["themeningOpen"].is_null())                  themeningOpen = txt["dev"]["themeningOpen"];
     }
     if(!txt["layout"].is_null()) {
         txt = txt.at("layout");
@@ -1479,7 +1541,7 @@ static void loadConfig() {
         if(!txt["entityEditor"].is_null())       entityEditorOpen = txt["entityEditor"];
         if(!txt["infoPanel"].is_null())          infoPanelOpen = txt["infoPanel"];
         if(!txt["lighting"].is_null())           lightingOpen = txt["lighting"];
-        if(!txt["metrics"].is_null())            threadsOpen = txt["metrics"];
+        if(!txt["metrics"].is_null())            debugInfoOpen = txt["metrics"];
         if(!txt["sceneContentView"].is_null())   sceneContentViewOpen = txt["sceneContentView"];
         if(!txt["sceneView"].is_null())          sceneViewOpen = txt["sceneView"];
         if(!txt["soundMixer"].is_null())         soundMixerOpen = txt["soundMixer"];
@@ -1539,9 +1601,40 @@ static std::string getLightingTypeName() {
 }
 
 float speed_mult = 2.f;
+bool pressedScrBtn = false;
+bool pressedImgToggleBtn = false;
+bool pressedNativeToggleBtn = false;
 void processInput(Window* tWin, GLFWwindow* tPtr, float tDeltaTime) {
     if (glfwGetKey(tPtr, GLFW_KEY_ESCAPE) == GLFW_PRESS)
         tWin->close();
+
+    if (glfwGetKey(tPtr, GLFW_KEY_F1) == GLFW_PRESS) openURL("http://devs.xanytka.ru/wiki/fse");
+
+    if ((glfwGetKey(tPtr, GLFW_KEY_LEFT_CONTROL) == GLFW_PRESS || glfwGetKey(tPtr, GLFW_KEY_RIGHT_CONTROL) == GLFW_PRESS)
+        && (glfwGetKey(tPtr, GLFW_KEY_LEFT_ALT) == GLFW_PRESS || glfwGetKey(tPtr, GLFW_KEY_RIGHT_ALT) == GLFW_PRESS)) {
+        if (glfwGetKey(tPtr, GLFW_KEY_I) == GLFW_PRESS && !pressedImgToggleBtn) {
+            pressedImgToggleBtn = true;
+            drawImGUI = !drawImGUI;
+            if (!drawImGUI) {
+                if (!alreadyShownImgWarn) LOG_INFO("ImGui rendering sequence disabled - To enable it back press LCtrl+LAlt+I");
+                alreadyShownImgWarn = true;
+            }
+        }
+        if (glfwGetKey(tPtr, GLFW_KEY_U) == GLFW_PRESS && !pressedNativeToggleBtn) {
+            pressedNativeToggleBtn = true;
+            drawNativeUI = !drawNativeUI;
+        }
+    }
+    if (glfwGetKey(tPtr, GLFW_KEY_I) == GLFW_RELEASE) pressedImgToggleBtn = false;
+    if (glfwGetKey(tPtr, GLFW_KEY_U) == GLFW_RELEASE) pressedNativeToggleBtn = false;
+
+    if (glfwGetKey(tPtr, GLFW_KEY_F2) == GLFW_PRESS && !pressedScrBtn) {
+        pressedScrBtn = true;
+        std::filesystem::create_directory(lastPath.string() + "\\" + std::string("screenshots\\"));
+        screenShotPath = lastPath.string() + "\\" + std::string("screenshots\\") + currentDateTime("%d-%m-%Y-") + StrReplace(currentDateTime("%X"), ':', '-') + ".jpg";
+        needToScreenShot = true;
+    }
+    if (glfwGetKey(tPtr, GLFW_KEY_F2) == GLFW_RELEASE) pressedScrBtn = false;
 
     if (glfwGetKey(tPtr, GLFW_KEY_E) == GLFW_PRESS) currentGizmoOperation = ImGuizmo::TRANSLATE;
     if (glfwGetKey(tPtr, GLFW_KEY_R) == GLFW_PRESS) currentGizmoOperation = ImGuizmo::ROTATE;
@@ -1586,29 +1679,6 @@ void processInput(Window* tWin, GLFWwindow* tPtr, float tDeltaTime) {
 
     FSOAL::Listener::setPosition(camera.pos);
     FSOAL::Listener::setRotation(camera.Forward, camera.Up);
-
-    if (glfwGetKey(tPtr, GLFW_KEY_L) == GLFW_PRESS) drawSelectMod = 1;
-    if (glfwGetKey(tPtr, GLFW_KEY_H) == GLFW_PRESS) drawSelectMod = 0;
-    if (drawSelectMod == 0) {
-        lightingMode = 3;
-        if (glfwGetKey(tPtr, GLFW_KEY_1) == GLFW_PRESS) { drawMode = 0; }
-        if (glfwGetKey(tPtr, GLFW_KEY_2) == GLFW_PRESS) { drawMode = 2; }
-        if (glfwGetKey(tPtr, GLFW_KEY_3) == GLFW_PRESS) { drawMode = 3; }
-        if (glfwGetKey(tPtr, GLFW_KEY_4) == GLFW_PRESS) { drawMode = 4; }
-        if (glfwGetKey(tPtr, GLFW_KEY_5) == GLFW_PRESS) { drawMode = 5; }
-        if (glfwGetKey(tPtr, GLFW_KEY_6) == GLFW_PRESS) { drawMode = 6; }
-        if (glfwGetKey(tPtr, GLFW_KEY_7) == GLFW_PRESS) { drawMode = 7; }
-        if (glfwGetKey(tPtr, GLFW_KEY_8) == GLFW_PRESS) { drawMode = 8; }
-        if (glfwGetKey(tPtr, GLFW_KEY_9) == GLFW_PRESS) { drawMode = 9; }
-        if (glfwGetKey(tPtr, GLFW_KEY_0) == GLFW_PRESS) { drawMode = 1; }
-    }
-    if (drawSelectMod == 1) {
-        drawMode = 0;
-        if (glfwGetKey(tPtr, GLFW_KEY_1) == GLFW_PRESS) { lightingMode = 0; }
-        if (glfwGetKey(tPtr, GLFW_KEY_2) == GLFW_PRESS) { lightingMode = 1; }
-        if (glfwGetKey(tPtr, GLFW_KEY_3) == GLFW_PRESS) { lightingMode = 2; }
-        if (glfwGetKey(tPtr, GLFW_KEY_4) == GLFW_PRESS) { lightingMode = 3; }
-    }    
 
     if (glfwGetKey(tPtr, GLFW_KEY_V) == GLFW_PRESS) { wireframeEnabled = !wireframeEnabled; }
     if (glfwGetKey(tPtr, GLFW_KEY_F) == GLFW_PRESS) { sLightEnabled = !sLightEnabled; }
@@ -1661,7 +1731,7 @@ static void displayLoadingMsg(std::string t_Msg, Shader* t_Shader, Window* t_Win
     t_Window->pollEvents();
     t_Window->clearBuffers();
     t.draw(t_Shader, "App is loading", t_Window->getSize(),
-        glm::vec2(t_Window->getWidth() / 3, t_Window->getHeight() / 2), glm::vec2(1.5f), glm::vec3(0.75f, 0.5f, 0.f));
+        glm::vec2(t_Window->getWidth() / 2.5f, t_Window->getHeight() / 2), glm::vec2(1.5f), glm::vec3(0.75f, 0.5f, 0.f));
     t.draw(t_Shader, t_Msg, t_Window->getSize(),
         glm::vec2(10, 15), glm::vec2(1.f), glm::vec3(1));
     t_Window->swapBuffers();

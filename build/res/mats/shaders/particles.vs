@@ -15,5 +15,5 @@ void main() {
 	vec4 worldPosition = model * vec4(0.0, 0.0, 0.0, 1.0);
     vec3 position = worldPosition.xyz + posOffset.x * camRight + posOffset.y * camUp;
 
-    gl_Position = projection * view * vec4(position, 1.0);
+    gl_Position = projection * view * model * vec4(aPos, 1.0);
 }

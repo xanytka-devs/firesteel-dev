@@ -1,5 +1,6 @@
 {
 	"name": "Billboard",
+	"type": 1,
 	"shader": {
 		"vert": "res/mats/shaders/billboard.vs",
 		"frag": "res/mats/shaders/billboard.fs"

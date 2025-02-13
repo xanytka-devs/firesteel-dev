@@ -1,5 +1,6 @@
 {
-	"name": "Basic 3D",
+	"name": "Text",
+	"type": 1,
 	"shader": {
 		"vert": "res/mats/shaders/text.vs",
 		"frag": "res/mats/shaders/text.fs"

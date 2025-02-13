@@ -17,7 +17,6 @@ namespace Firesteel {
         Particle() : Position(0.0f), Velocity(0.0f), Color(1.0f), Life(0.0f) {}
     };
 
-    // Функция для генерации случайных значений в диапазоне
     float RandomFloat() {
         return static_cast<float>(rand()) / static_cast<float>(RAND_MAX);
     }
@@ -34,42 +33,34 @@ namespace Firesteel {
             maxParticles = tMaxParticles;
             if(tInit) init();
         }
+        ~ParticleSystem() { remove(); }
 
         void init() {
             particles.resize(maxParticles);
             float particle_quad[] = {
-                // Позиции вершин квада
                 -0.05f, -0.05f, 0.0f,
                  0.05f, -0.05f, 0.0f,
                  0.05f,  0.05f, 0.0f,
                 -0.05f,  0.05f, 0.0f
             };
-
-            // Настройка VAO и VBO
             glGenVertexArrays(1, &VAO);
             glGenBuffers(1, &VBO);
-
             glBindVertexArray(VAO);
-
             glBindBuffer(GL_ARRAY_BUFFER, VBO);
             glBufferData(GL_ARRAY_BUFFER, sizeof(particle_quad), particle_quad, GL_STATIC_DRAW);
-
             glEnableVertexAttribArray(0);
             glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
-
             glBindVertexArray(0);
         }
 
         void update(const float& dt) {
             for (unsigned int i = 0; i < maxParticles; ++i) {
                 Particle& p = particles[i];
-                p.Life -= dt; // Уменьшение времени жизни
-                if (p.Life > 0.0f) { // Частица жива
-                    p.Position += p.Velocity * dt; // Обновление позиции
-                    p.Color.a -= dt * 2.5f; // Затухание
-                } else {
-                    respawn(p); // Перерождение частицы
-                }
+                p.Life -= dt;
+                if (p.Life > 0.0f) {
+                    p.Position += p.Velocity * dt;
+                    p.Color.a -= dt * 2.5f;
+                } else respawn(p);
             }
         }
 
@@ -84,7 +75,6 @@ namespace Firesteel {
             glBlendFunc(GL_SRC_ALPHA, GL_ONE);
             shader->enable();
             glBindVertexArray(VAO);
-
             for(size_t i = 0; i < particles.size(); i++) {
                 if(particles[i].Life > 0.0f) {
                     shader->setVec3("offset", particles[i].Position - glm::vec3(particles[i].Life));
@@ -92,12 +82,10 @@ namespace Firesteel {
                     glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
                 }
             }
-
             glBindVertexArray(0);
             glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
         }
 
-        ~ParticleSystem() { remove(); }
 
         void remove() const {
             glDeleteVertexArrays(1, &VAO);

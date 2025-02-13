@@ -6,7 +6,6 @@
 #include <../external/imgui/backends/imgui_impl_glfw.h>
 #include <../external/imgui/backends/imgui_impl_opengl3.h>
 #include "../external/imgui/imgui_internal.h"
-#include "../external/imgui/imgui_markdown.h"
 #include <string>
 #include "engine/include/utils/utils.hpp"
 

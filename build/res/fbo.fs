@@ -5,7 +5,6 @@ in vec2 frag_UV;
 
 uniform sampler2D screenTexture;
 uniform sampler2D bloomBlur;
-uniform bool showBloomSampler;
 uniform int AAMethod;
 uniform vec2 screenSize;
 uniform float gamma;
@@ -243,11 +242,6 @@ void main() {
 	//	FragColor = vec4(vec3(colSum), 1.0);
 	//else if(colSum<0.75 && colSum>0.25)
 	//	FragColor = vec4(1, 0, 0, 1);
-	
-	if(showBloomSampler) {
-		FragColor = texture(bloomBlur, frag_UV.st);
-		return;
-	}
 	
 	vec3 col = vec3(texture(screenTexture, frag_UV.st));
 	// anti-alising

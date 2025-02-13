@@ -7,6 +7,7 @@ struct Material {
 	Shader shader;
 	std::string path = "";
 	std::string name = "New Material";
+    unsigned int type = 0;
 	Material load(std::string tPath) {
 		if(!std::filesystem::exists(tPath)) {
             LOG_ERRR("Material at \""+tPath+"\" doesn't exist.");
@@ -18,6 +19,7 @@ struct Material {
 		name = txt["name"];
 		std::string vP = txt["shader"]["vert"];
 		std::string fP = txt["shader"]["frag"];
+        type = txt["type"];
 		if(!txt["shader"]["geom"].is_null()) {
 			std::string gP = txt["shader"]["geom"];
 			shader = Shader(vP.c_str(), fP.c_str(), gP.c_str());
