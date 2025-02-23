@@ -24,6 +24,14 @@ struct Material {
 			std::string gP = txt["shader"]["geom"];
 			shader = Shader(vP.c_str(), fP.c_str(), gP.c_str());
 		} else shader = Shader(vP.c_str(), fP.c_str());
+        if(!txt["cfg"].is_null()) {
+            shader.enable();
+            for (auto it = txt["cfg"].begin(); it != txt["cfg"].end(); ++it) {
+                if(it->is_boolean()) shader.setBool(it.key().c_str(), *it);
+                else if(it->is_number_integer()) shader.setInt(it.key().c_str(), *it);
+                else if(it->is_number_float()) shader.setFloat(it.key().c_str(), *it);
+            }
+        }
 		return *this;
 	}
 

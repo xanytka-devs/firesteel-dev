@@ -25,7 +25,7 @@ namespace Firesteel {
             LOG_C("[-   Dev branch  -]", CMD_F_PURPLE);
             LOG_STATE("STARTUP");
 			onPreInitialize();
-            // Create window.
+            //Create window.
             window = Window(tWinWidth, tWinHeight);
             if(!window.initialize(tTitle, tWinState, BOUND_GL_VERSION_MAJOR, BOUND_GL_VERSION_MINOR))
                 return 1;
@@ -33,7 +33,7 @@ namespace Firesteel {
             bool isVulkan = (glfwVulkanSupported() == 1);
             LOG_INFO(isVulkan ? "Vulkan is supported on current machine."
                 : "Vulkan isn't supported on current machine.");
-            // GLAD (OpenGL) init.
+            //GLAD (OpenGL) init.
             Renderer r = Renderer();
             if (!r.initialize()) {
                 LOG_ERRR("OpenGL isn't supported on current machine.");
@@ -44,7 +44,7 @@ namespace Firesteel {
             r.initializeParams();
             onInitialize();
 
-            // Update loop.
+            //Update loop.
             LOG_STATE("UPDATE LOOP");
             while (window.isOpen()) {
                 window.pollEvents();
@@ -63,7 +63,7 @@ namespace Firesteel {
             }
             LOG_STATE("SHUTDOWN");
             onShutdown();
-            // Quitting.
+            //Quitting.
             window.terminate();
             LOG_INFO("Window terminated");
             LOG_STATE("QUIT");

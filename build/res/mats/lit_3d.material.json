@@ -4,5 +4,11 @@
 	"shader": {
 		"vert": "res/mats/shaders/lit_3d.vs",
 		"frag": "res/mats/shaders/lit_3d.fs"
+	},
+	"cfg": {
+		"material.normalStrength": 1.0,
+		"material.shininess": 64.0,
+		"material.skyboxRefraction": 0.65789,
+		"material.skyboxRefractionStrength": 0.0125
 	}
 }

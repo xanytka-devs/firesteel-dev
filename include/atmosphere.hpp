@@ -1,8 +1,8 @@
 #ifndef FS_ATMOSPHERE_H
 #define FS_ATMOSPHERE_H
 
-#include "common.hpp"
-#include "shader.hpp"
+#include "engine/include/common.hpp"
+#include "engine/include/shader.hpp"
 
 namespace Firesteel {
 	struct Atmosphere {

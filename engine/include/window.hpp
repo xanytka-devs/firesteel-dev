@@ -1,6 +1,8 @@
 #ifndef FS_WINDOW_H
 #define FS_WINDOW_H
 #include "common.hpp"
+#include "input/keyboard.hpp"
+#include "input/mouse.hpp"
 
 namespace Firesteel {
 
@@ -62,10 +64,10 @@ namespace Firesteel {
             glfwInitHint(GLFW_JOYSTICK_HAT_BUTTONS, GLFW_TRUE);
             // Setup callbacks.
             glfwSetFramebufferSizeCallback(mPtr, framebufferSizeCallback);
-            //glfwSetCursorPosCallback(m_ptr, Mouse::cursor_callback);
-            //glfwSetMouseButtonCallback(m_ptr, Mouse::button_callback);
-            //glfwSetScrollCallback(m_ptr, Mouse::scroll_callback);
-            //glfwSetKeyCallback(m_ptr, Keyboard::key_callback);
+            glfwSetCursorPosCallback(mPtr, Mouse::cursorCallback);
+            glfwSetMouseButtonCallback(mPtr, Mouse::buttonCallback);
+            glfwSetScrollCallback(mPtr, Mouse::scrollCallback);
+            glfwSetKeyCallback(mPtr, Keyboard::keyCallback);
             return true;
 		}
         void swapBuffers() const {

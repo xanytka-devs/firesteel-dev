@@ -14,12 +14,6 @@ public:
     bool mUndone = false;
 };
 
-struct TransformComponent {
-    glm::vec3 position;
-    glm::vec3 rotation;
-    glm::vec3 size;
-};
-
 class PositionChangeAction : public UndoableAction {
 public:
     PositionChangeAction(Entity& entity, const glm::vec3& newPosition)

@@ -11,12 +11,6 @@
 
 namespace FSOAL {
 
-	struct AudioLayer {
-	public:
-		float gain = 1;
-		float pitch = 1;
-	};
-
 	struct Source {
 	public:
 		Source()
@@ -126,8 +120,8 @@ namespace FSOAL {
 			alSourcef(mSource, AL_GAIN, mGain);
 			return this;
 		}
-		Source* setGain(AudioLayer tAl) {
-			alSourcef(mSource, AL_GAIN, mGain * tAl.gain);
+		Source* setTempGain(float tGain) {
+			alSourcef(mSource, AL_GAIN, tGain);
 			return this;
 		}
 		Source* setPitch(float tPitch) {
@@ -135,8 +129,8 @@ namespace FSOAL {
 			alSourcef(mSource, AL_PITCH, mPitch);
 			return this;
 		}
-		Source* setPitch(AudioLayer tAl) {
-			alSourcef(mSource, AL_PITCH, mPitch * tAl.pitch);
+		Source* setTempPitch(float tPitch) {
+			alSourcef(mSource, AL_PITCH, tPitch);
 			return this;
 		}
 		Source* setLooping(bool tLoop) {

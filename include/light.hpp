@@ -2,7 +2,7 @@
 #define FS_LIGHT_H
 
 #include <glm/glm.hpp>
-#include "shader.hpp"
+#include "engine/include/shader.hpp"
 
 namespace Firesteel {
 	struct PointLight {

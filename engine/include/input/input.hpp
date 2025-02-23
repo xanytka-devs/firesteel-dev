@@ -8,14 +8,14 @@
 namespace Firesteel {
 	class Input {
 	public:
-		static float get_horizontal_axis() {
-			if (Keyboard::key_state(KeyCode::D)) return 1.f;
-			if (Keyboard::key_state(KeyCode::A)) return -1.f;
+		static float getHorizontalAxis() {
+			if(Keyboard::getKey(KeyCode::D)) return 1.f;
+			if(Keyboard::getKey(KeyCode::A)) return -1.f;
 			return 0.f;
 		}
-		static float get_vertical_axis() {
-			if (Keyboard::key_state(KeyCode::W)) return 1.f;
-			if (Keyboard::key_state(KeyCode::S)) return -1.f;
+		static float getVerticalAxis() {
+			if(Keyboard::getKey(KeyCode::W)) return 1.f;
+			if(Keyboard::getKey(KeyCode::S)) return -1.f;
 			return 0.f;
 		}
 	};

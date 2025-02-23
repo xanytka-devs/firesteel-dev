@@ -21,8 +21,7 @@ namespace FSImGui {
         ImGui::CreateContext();
         ImGuiIO& io = ImGui::GetIO();
         io.ConfigFlags |= ImGuiConfigFlags_::ImGuiConfigFlags_DockingEnable | ImGuiConfigFlags_NavEnableKeyboard
-            | ImGuiConfigFlags_NavEnableGamepad | ImGuiConfigFlags_ViewportsEnable
-            | ImGuiConfigFlags_::ImGuiConfigFlags_ViewportsEnable;
+            | ImGuiConfigFlags_ViewportsEnable | ImGuiConfigFlags_::ImGuiConfigFlags_ViewportsEnable;
         // Setup Dear ImGui style
         ImGui::StyleColorsDark(); // you can also use ImGui::StyleColorsClassic();
         // Choose backend
