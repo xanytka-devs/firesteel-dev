@@ -3,6 +3,7 @@
 
 #include "engine/include/common.hpp"
 #include "engine/include/shader.hpp"
+#include "engine/include/cubemap.hpp"
 
 namespace Firesteel {
 	struct Atmosphere {

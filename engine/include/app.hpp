@@ -35,10 +35,7 @@ namespace Firesteel {
                 : "Vulkan isn't supported on current machine.");
             //GLAD (OpenGL) init.
             Renderer r = Renderer();
-            if (!r.initialize()) {
-                LOG_ERRR("OpenGL isn't supported on current machine.");
-                return -1;
-            } else LOG_INFO("OpenGL is supported on current machine.");
+            if (!r.initialize()) return -1;
             r.loadExtencions();
             r.printInfo();
             r.initializeParams();

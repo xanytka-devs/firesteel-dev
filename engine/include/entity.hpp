@@ -89,7 +89,6 @@ namespace Firesteel {
                 model.textures[i].remove();
             model.directory = "";
             mHasMeshes = false;
-            LOG_INFO("Removed model from entity");
         }
 
         /// Loads a model with ASSIMP.

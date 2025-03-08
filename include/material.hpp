@@ -1,6 +1,7 @@
 #include <../engine/include/shader.hpp>
 #include <../engine/include/texture.hpp>
 #include <../engine/include/utils/utils.hpp>
+#include "utils.hpp"
 using namespace Firesteel;
 
 struct Material {
@@ -27,7 +28,16 @@ struct Material {
         if(!txt["cfg"].is_null()) {
             shader.enable();
             for (auto it = txt["cfg"].begin(); it != txt["cfg"].end(); ++it) {
-                if(it->is_boolean()) shader.setBool(it.key().c_str(), *it);
+                if(it->is_array()) {
+                    unsigned int i=0;
+                    glm::vec4 vec = Vec4FromJson(it);
+                    if (it->size() == 4)
+                        shader.setVec4(it.key().c_str(), vec);
+                    else if(it->size() == 3)
+                        shader.setVec3(it.key().c_str(), vec);
+                    else if(it->size() == 2)
+                        shader.setVec2(it.key().c_str(), vec);
+                } else if(it->is_boolean()) shader.setBool(it.key().c_str(), *it);
                 else if(it->is_number_integer()) shader.setInt(it.key().c_str(), *it);
                 else if(it->is_number_float()) shader.setFloat(it.key().c_str(), *it);
             }

@@ -33,6 +33,7 @@ using namespace Firesteel;
 #include "include/undo_buffer.hpp"
 #include "include/config.hpp"
 #include "include/audio_mixer.hpp"
+#include "include/scene.hpp"
 
 #pragma region Defines
 Camera camera(glm::vec3(0.0f, 0.0f, 3.0f), glm::vec3(0, 0, -90));
@@ -60,7 +61,8 @@ bool undoHistoryOpen = false;
 
 bool bgMuted = false;
 bool sfxMuted = false;
-float preMuteGain = 0.0f;
+float preMuteBgGain = 0.0f;
+float preMuteSfxGain = 0.0f;
 
 bool shdrParamMaterialGenPreview = false;
 bool debugInfoOpen = true;
@@ -72,12 +74,13 @@ bool consoleDevMode = false;
 bool switchedToDevConsole = false;
 bool themeningOpen = false;
 bool themeningEnabled = false;
+bool inputTesterOpen = false;
+bool joystickFastVibrTest = false;
+bool joystickSlowVibrTest = false;
 std::string consoleInput;
 std::string consoleLog;
 bool backupLogs = false;
 bool didSaveCurPrj = true;
-bool overrideAspect = false;
-float clipSpace = 1.0f;
 float mouseSensativity = 0.1f;
 bool mouseInvertY = false;
 
@@ -85,7 +88,7 @@ bool displayGizmos = true;
 GLuint texID = 0;
 bool drawSkybox = true;
 int loadedW = 800, loadedH = 600;
-glm::vec2 sceneWinSize = glm::vec2(loadedW,loadedH);
+glm::vec2 sceneWinSize;
 const std::string GLOBAL_VER = "0.2.0.6";
 
 float gamma = 1.f;
@@ -158,8 +161,7 @@ static void CreateScreenShot(unsigned int tWidth, unsigned int tHeight) {
             LOG_INFO("Created a screenshot at: " + screenShotPath);
         }
         else LOG_ERRR("Couldn't create a screenshot at: " + screenShotPath);
-    }
-    else {
+    } else {
         stbi_flip_vertically_on_write(true);
         bool couldCreate = true;
 
@@ -183,15 +185,6 @@ static bool AskForScreenShot() {
 }
 #pragma endregion
 
-Atmosphere atmos {
-    Atmosphere::DirectionalLight{
-        glm::vec3(-0.2f, -1.0f, -0.3f), // Direction.
-        // Lighting params.
-        glm::vec3(0.f), // Ambient.
-        glm::vec3(0.f), // Diffuse.
-        glm::vec3(10.f) // Specular.
-    }
-};
 PointLight pLight{
     glm::vec3(-1.f, 0.75f, -1.f), // Position.
     // Lighting params.
@@ -215,7 +208,6 @@ std::filesystem::path lastPath;
 
 using namespace luabridge;
 class EditorApp : public App {
-    std::vector<EditorObject> entities;
     std::vector<Material> materialReg;
     std::vector<std::string> materialTypes;
 
@@ -223,9 +215,10 @@ class EditorApp : public App {
     Framebuffer ppFBO, imguiFBO;
     Shader fboShader, defaultShader;
     ParticleSystem pS = ParticleSystem(glm::vec3(0, 0, 0), 500, "res/yeah.png", false);
-    Cubemap sky;
     imgui_conf imgConf;
     Joystick joystick;
+    Cubemap sky;
+    Scene scene;
 
     FSOAL::Source phoneAmbience;
     FSOAL::AudioLayer alSFX{};
@@ -236,7 +229,9 @@ class EditorApp : public App {
     ActionRegistry actions;
     lua_State* L = nullptr;
 
-    // Reloads all default shaders.
+    void setPosOfEnt(int tID, float tX, float tY, float tZ) {
+        scene[tID].entity.transform.Position = glm::vec3(tX, tY, tZ);
+    }
     void reloadShaders() {
         LOG_INFO("'Shader reload' sequence initialized...");
         LOG_INFO("Reloading base shaders");
@@ -353,32 +348,38 @@ class EditorApp : public App {
         // Upper help menu.
         ImGui::PopStyleVar(1);
         ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(5.0f, 5.0f));
-        if (ImGui::BeginMenuBar()) {
+        if(ImGui::BeginMenuBar()) {
             if (ImGui::BeginMenu(u8"Файл")) {
                 if (ImGui::MenuItem(u8"Сохранить")) {
                     FileDialog fd;
-                    fd.filter = "All\0*.*\0FSE Project (*.fse)\0*.fse\0";
+                    fd.filter = "All\0*.*\0Scene (*.scene.json)\0*.scene.json\0";
                     fd.filter_id = 2;
                     std::string res = fd.save();
                     if (res != "") {
-                        StrToFile(res, "Still WIP.");
-                        LOG_INFO("Saved project to \"" + res + "\".");
+                        scene.save(res.c_str());
+                        std::filesystem::current_path(lastPath);
+                        LOG_INFO("Saved scene to \"" + res + "\".");
                         didSaveCurPrj = true;
                     }
                 }
                 if (ImGui::MenuItem(u8"Открыть")) {
                     FileDialog fd;
-                    fd.filter = "All\0*.*\0FSE Project (*.fse)\0*.fse\0";
+                    fd.filter = "All\0*.*\0Scene (*.scene.json)\0*.scene.json\0";
                     fd.filter_id = 2;
                     std::string res = fd.open();
                     if (res != "") {
-                        LOG_INFO("Opened project to \"" + res + "\".");
+                        scene = Scene(res.c_str(), &sky);
+                        std::filesystem::current_path(lastPath);
+                        LOG_INFO("Opened scene at \"" + res + "\".");
                         didSaveCurPrj = true;
                     }
                 }
                 ImGui::Separator();
                 if (ImGui::MenuItem(u8"Открыть демо-сцену")) {
-
+                    scene = Scene("res\\demo.scene.json", &sky);
+                    std::filesystem::current_path(lastPath);
+                    LOG_INFO("Opened scene at \"res\\demo.scene.json\".");
+                    didSaveCurPrj = true;
                 }
                 ImGui::Separator();
                 if (ImGui::MenuItem(u8"Закрыть (Esc)")) window.close();
@@ -394,16 +395,15 @@ class EditorApp : public App {
                 ImGui::Checkbox(u8"Редактор объектов", &entityEditorOpen);
                 ImGui::Checkbox(u8"Свет", &lightingOpen);
                 ImGui::Checkbox(u8"Содержимое сцены", &sceneContentViewOpen);
-                if (themeningEnabled) ImGui::Checkbox(u8"Редактор темы", &themeningOpen);
+                if(themeningEnabled) ImGui::Checkbox(u8"Редактор темы", &themeningOpen);
                 else themeningOpen = false;
                 if (ImGui::MenuItem(u8"Сбросить")) {
                     texViewOpen = false;
                     newsViewOpen = true;
                 }
                 ImGui::Separator();
-                if (ImGui::MenuItem(u8"Скриншот")) needToScreenShot = AskForScreenShot();
-                if (ImGui::MenuItem(u8"Скриншот Редактора")) needToScreenShotEditor = AskForScreenShot();
-                std::filesystem::current_path(lastPath);
+                if(ImGui::MenuItem(u8"Скриншот")) { needToScreenShot = AskForScreenShot(); std::filesystem::current_path(lastPath); }
+                if(ImGui::MenuItem(u8"Скриншот Редактора")) { needToScreenShotEditor = AskForScreenShot(); std::filesystem::current_path(lastPath); }
                 ImGui::EndMenu();
             }
             if (ImGui::BeginMenu(u8"Помощь")) {
@@ -433,6 +433,7 @@ class EditorApp : public App {
                 ImGui::Checkbox(u8"Просмотр текстур", &texViewOpen);
                 ImGui::Checkbox(u8"Создавать бэкапы логов", &backupLogs);
                 ImGui::Checkbox(u8"Статистика потоков", &debugInfoOpen);
+                ImGui::Checkbox(u8"Тест системы ввода", &inputTesterOpen);
                 ImGui::Separator();
                 if (ImGui::MenuItem(u8"Переключить Нативный UI")) { drawNativeUI = !drawNativeUI; }
                 if (ImGui::MenuItem(u8"Выключить ImGui")) {
@@ -449,12 +450,12 @@ class EditorApp : public App {
         }
         ImGui::End();
 
-        if (newsViewOpen) {
+        if(newsViewOpen) {
             ImGui::Begin("News", &newsViewOpen);
             FSImGui::MD::Text(newsTxtLoaded);
             ImGui::End();
         }
-        if (infoPanelOpen) {
+        if(infoPanelOpen) {
             ImGui::Begin("Info", &infoPanelOpen);
             auto windowWidth = ImGui::GetWindowSize().x;
             auto textWidth = ImGui::CalcTextSize(u8"Авторы редактора").x;
@@ -503,7 +504,7 @@ class EditorApp : public App {
             ImGui::TextLinkOpenURL("OpenAL Soft", "https://github.com/kcat/openal-soft");
             ImGui::End();
         }
-        if (sceneViewOpen) {
+        if(sceneViewOpen) {
             ImGui::PopStyleVar(3);
             ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
             ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
@@ -559,7 +560,7 @@ class EditorApp : public App {
             }
             ImGui::End();
         }
-        if (entityEditorOpen) {
+        if(entityEditorOpen) {
             ImGui::Begin("Entity Editor", &entityEditorOpen);
             if (heldEntity) {
                 ImGui::InputText("Name", &heldEntity->name);
@@ -568,7 +569,7 @@ class EditorApp : public App {
                 if (ImGui::Button("X##delentity")) {
                     heldEntity->remove();
                     heldEntity = nullptr;
-                    entities.erase(std::next(entities.begin(), heldEntityID));
+                    scene.entities.erase(std::next(scene.entities.begin(), heldEntityID));
                     heldEntityID = 0;
                     indeletion = true;
                 }
@@ -578,131 +579,146 @@ class EditorApp : public App {
                         FSImGui::DragFloat3(u8"Вращение", &heldEntity->entity.transform.Rotation);
                         FSImGui::DragFloat3(u8"Размер", &heldEntity->entity.transform.Size);
                     }
-                    if (heldEntity->entity.hasModel()) if (ImGui::CollapsingHeader(u8"Модель", ImGuiTreeNodeFlags_DefaultOpen)) {
-                        ImGui::Text(heldEntity->entity.model.path.c_str());
-                        ImGui::SameLine();
-                        if (ImGui::Button("...##model_exchange")) {
-                            LOG_INFO("Opening dialog for model selection (Entity:\"" + heldEntity->name + "\")");
-                            FileDialog fd;
-                            fd.filter = "All\0*.*\0OBJ Model (*.obj)\0*.obj\0FBX Model (*.fbx)\0*.fbx\0GLTF Model (*.gltf)\0*.gltf\0";
-                            fd.filter_id = 2;
-                            fd.path = heldEntity->entity.model.directory.c_str();
-                            std::string modelPath = fd.open();
-                            if (modelPath != "") {
-                                std::filesystem::current_path(lastPath);
-                                LOG_INFO("Model at \"" + modelPath + "\" does exist. Exchanging...");
-                                heldEntity->entity.clearMeshes();
-                                heldEntity->entity.loadFromFile(modelPath);
-                            }
-                        }
-                        ImGui::SameLine();
-                        if (ImGui::Button("X##delmaterial")) heldEntity->entity.clearMeshes();
-                        if (ImGui::CollapsingHeader(u8"Материал")) {
-                            Material mat = heldEntity->material;
-                            ImGui::Text((u8"Название: " + mat.name).c_str());
-                            ImGui::Text((u8"Тип: " + materialTypes[mat.type]).c_str());
-                            ImGui::Text((u8"Путь: " + mat.path).c_str());
-                            ImGui::SameLine();
-                            if (ImGui::Button("...##shdr_exchange")) {
-                                LOG_INFO("Opening dialog for shader selection (Entity:\"" + heldEntity->name + "\")");
+                    if (ImGui::CollapsingHeader(u8"Модель", ImGuiTreeNodeFlags_DefaultOpen)) {
+                        if (heldEntity->entity.hasModel()) {
+                            ImGui::Text(heldEntity->entity.model.path.c_str());
+                            if (ImGui::Button("...##model_exchange")) {
+                                LOG_INFO("Opening dialog for model selection (Entity:\"" + heldEntity->name + "\")");
                                 FileDialog fd;
-                                fd.filter = "All\0*.*\0Material (*.material.json)\0*.material.json\0";
+                                fd.filter = "All\0*.*\0OBJ Model (*.obj)\0*.obj\0FBX Model (*.fbx)\0*.fbx\0GLTF Model (*.gltf)\0*.gltf\0";
                                 fd.filter_id = 2;
                                 fd.path = heldEntity->entity.model.directory.c_str();
-                                std::string shaderPath = fd.open();
-                                if (shaderPath != "") {
+                                std::string modelPath = fd.open();
+                                if (modelPath != "") {
                                     std::filesystem::current_path(lastPath);
-                                    LOG_INFO("Shader at \"" + shaderPath + "\" does exist. Exchanging...");
+                                    LOG_INFO("Model at \"" + modelPath + "\" does exist. Exchanging...");
+                                    heldEntity->entity.clearMeshes();
+                                    heldEntity->entity.loadFromFile(modelPath);
                                 }
                             }
-                            if (shdrParamMaterialGenPreview) {
-                                GLint count, i, size;
-                                GLenum type;
-                                const GLsizei bufSize = 40;
-                                GLchar name[bufSize];
-                                GLsizei length;
-                                glGetProgramiv(mat.shader.ID, GL_ACTIVE_UNIFORMS, &count);
-                                ImGui::Text(("Active Uniforms: " + std::to_string(count)).c_str());
+                            ImGui::SameLine();
+                            if (ImGui::Button("X##delmaterial")) heldEntity->entity.clearMeshes();
+                            if (ImGui::CollapsingHeader(u8"Материал")) {
+                                Material mat = heldEntity->material;
+                                ImGui::Text((u8"Название: " + mat.name).c_str());
+                                ImGui::Text((u8"Тип: " + materialTypes[mat.type]).c_str());
+                                ImGui::Text((u8"Путь: " + mat.path).c_str());
+                                ImGui::SameLine();
+                                if (ImGui::Button("...##shdr_exchange")) {
+                                    LOG_INFO("Opening dialog for shader selection (Entity:\"" + heldEntity->name + "\")");
+                                    FileDialog fd;
+                                    fd.filter = "All\0*.*\0Material (*.material.json)\0*.material.json\0";
+                                    fd.filter_id = 2;
+                                    fd.path = heldEntity->entity.model.directory.c_str();
+                                    std::string shaderPath = fd.open();
+                                    if (shaderPath != "") {
+                                        std::filesystem::current_path(lastPath);
+                                        LOG_INFO("Shader at \"" + shaderPath + "\" does exist. Exchanging...");
+                                    }
+                                }
+                                if (shdrParamMaterialGenPreview) {
+                                    GLint count, i, size;
+                                    GLenum type;
+                                    const GLsizei bufSize = 40;
+                                    GLchar name[bufSize];
+                                    GLsizei length;
+                                    glGetProgramiv(mat.shader.ID, GL_ACTIVE_UNIFORMS, &count);
+                                    ImGui::Text(("Active Uniforms: " + std::to_string(count)).c_str());
 
-                                mat.enable();
-                                for (i = 0; i < count; i++) {
-                                    glGetActiveUniform(mat.shader.ID, (GLuint)i, bufSize, &length, &size, &type, name);
-                                    GLint loc = glGetUniformLocation(mat.shader.ID, name);
-                                    LOG_INFO(std::to_string(loc) + " " + name);
-                                    GLint paramI;
-                                    GLfloat paramF;
-                                    float paramFs[4] = { 0,0,0,0 };
-                                    bool val = false;
-                                    if (StrSplit(name, '.').size() == 1) {
-                                        switch (type) {
-                                        case GL_FLOAT_MAT2:
-                                            break;
-                                        case GL_FLOAT_MAT3:
-                                            break;
-                                        case GL_FLOAT_MAT4:
-                                            break;
-                                        case GL_BOOL:
-                                            glGetUniformiv(mat.shader.ID, loc, &paramI);
-                                            val = paramI == 1;
-                                            ImGui::Checkbox(name, &val);
-                                            mat.setBool(name, val);
-                                            break;
-                                        case GL_INT:
-                                            glGetUniformiv(mat.shader.ID, loc, &paramI);
-                                            ImGui::DragInt(name, &paramI);
-                                            mat.setInt(name, paramI);
-                                            break;
-                                        case GL_FLOAT:
-                                            glGetUniformfv(mat.shader.ID, loc, &paramF);
-                                            ImGui::DragFloat(name, &paramF);
-                                            mat.setFloat(name, paramF);
-                                            break;
-                                        case GL_FLOAT_VEC2:
-                                            glGetUniformfv(mat.shader.ID, loc, paramFs);
-                                            FSImGui::DragLFloat2(name, paramFs[0], paramFs[1]);
-                                            mat.setVec2(name, paramFs[0], paramFs[1]);
-                                            break;
-                                        case GL_FLOAT_VEC3:
-                                            glGetUniformfv(mat.shader.ID, loc, paramFs);
-                                            FSImGui::DragLFloat3(name, paramFs[0], paramFs[1], paramFs[2]);
-                                            mat.setVec3(name, paramFs[0], paramFs[1], paramFs[2]);
-                                            break;
-                                        case GL_FLOAT_VEC4:
-                                            glGetUniformfv(mat.shader.ID, loc, paramFs);
-                                            FSImGui::DragLFloat4(name, paramFs[0], paramFs[1], paramFs[2], paramFs[3]);
-                                            mat.setVec4(name, paramFs[0], paramFs[1], paramFs[2], paramFs[3]);
-                                            break;
-                                        default:
-                                            ImGui::Text((std::string(" Name: ") + name + " Type: " + std::to_string(type)).c_str());
-                                            break;
+                                    mat.enable();
+                                    for (i = 0; i < count; i++) {
+                                        glGetActiveUniform(mat.shader.ID, (GLuint)i, bufSize, &length, &size, &type, name);
+                                        GLint loc = glGetUniformLocation(mat.shader.ID, name);
+                                        LOG_INFO(std::to_string(loc) + " " + name);
+                                        GLint paramI;
+                                        GLfloat paramF;
+                                        float paramFs[4] = { 0,0,0,0 };
+                                        bool val = false;
+                                        if (StrSplit(name, '.').size() == 1) {
+                                            switch (type) {
+                                            case GL_FLOAT_MAT2:
+                                                break;
+                                            case GL_FLOAT_MAT3:
+                                                break;
+                                            case GL_FLOAT_MAT4:
+                                                break;
+                                            case GL_BOOL:
+                                                glGetUniformiv(mat.shader.ID, loc, &paramI);
+                                                val = paramI == 1;
+                                                ImGui::Checkbox(name, &val);
+                                                mat.setBool(name, val);
+                                                break;
+                                            case GL_INT:
+                                                glGetUniformiv(mat.shader.ID, loc, &paramI);
+                                                ImGui::DragInt(name, &paramI);
+                                                mat.setInt(name, paramI);
+                                                break;
+                                            case GL_FLOAT:
+                                                glGetUniformfv(mat.shader.ID, loc, &paramF);
+                                                ImGui::DragFloat(name, &paramF);
+                                                mat.setFloat(name, paramF);
+                                                break;
+                                            case GL_FLOAT_VEC2:
+                                                glGetUniformfv(mat.shader.ID, loc, paramFs);
+                                                FSImGui::DragLFloat2(name, paramFs[0], paramFs[1]);
+                                                mat.setVec2(name, paramFs[0], paramFs[1]);
+                                                break;
+                                            case GL_FLOAT_VEC3:
+                                                glGetUniformfv(mat.shader.ID, loc, paramFs);
+                                                FSImGui::DragLFloat3(name, paramFs[0], paramFs[1], paramFs[2]);
+                                                mat.setVec3(name, paramFs[0], paramFs[1], paramFs[2]);
+                                                break;
+                                            case GL_FLOAT_VEC4:
+                                                glGetUniformfv(mat.shader.ID, loc, paramFs);
+                                                FSImGui::DragLFloat4(name, paramFs[0], paramFs[1], paramFs[2], paramFs[3]);
+                                                mat.setVec4(name, paramFs[0], paramFs[1], paramFs[2], paramFs[3]);
+                                                break;
+                                            default:
+                                                ImGui::Text((std::string(" Name: ") + name + " Type: " + std::to_string(type)).c_str());
+                                                break;
+                                            }
                                         }
                                     }
                                 }
-                            }
-                            ImGui::Text(u8"Текстуры");
-                            for (size_t i = 0; i < heldEntity->entity.model.textures.size(); i++) {
-                                ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(0.0f, 0.0f));
-                                if (ImGui::ImageButton(("##" + heldEntity->entity.model.textures[i].type + std::to_string(i) + "_img").c_str(),
-                                    (ImTextureID)(size_t)heldEntity->entity.model.textures[i].ID, ImVec2(20, 20))) {
-                                    std::filesystem::current_path(lastPath);
-                                    LOG_INFO("Opening dialog for texture selection (Entity:\"" + heldEntity->name + "\")");
-                                    FileDialog fd;
-                                    fd.filter = "All\0*.*\0PNG Image (*.png)\0*.png\0JPEG Image (*.jpg)\0*.jpg\0";
-                                    fd.filter_id = 2;
-                                    std::string texPath = fd.open();
-                                    if (texPath != "") {
-                                        LOG_INFO("Texture at \"" + texPath + "\" does exist. Exchanging...");
-                                        heldEntity->entity.model.textures[i].remove();
-                                        Texture t;
-                                        t.ID = TextureFromFile(texPath);
-                                        t.type = heldEntity->entity.model.textures[i].type;
-                                        t.path = texPath;
-                                        heldEntity->entity.model.textures[i] = t;
+                                ImGui::Text(u8"Текстуры");
+                                for (size_t i = 0; i < heldEntity->entity.model.textures.size(); i++) {
+                                    ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(0.0f, 0.0f));
+                                    if (ImGui::ImageButton(("##" + heldEntity->entity.model.textures[i].type + std::to_string(i) + "_img").c_str(),
+                                        (ImTextureID)(size_t)heldEntity->entity.model.textures[i].ID, ImVec2(20, 20))) {
+                                        std::filesystem::current_path(lastPath);
+                                        LOG_INFO("Opening dialog for texture selection (Entity:\"" + heldEntity->name + "\")");
+                                        FileDialog fd;
+                                        fd.filter = "All\0*.*\0PNG Image (*.png)\0*.png\0JPEG Image (*.jpg)\0*.jpg\0";
+                                        fd.filter_id = 2;
+                                        std::string texPath = fd.open();
+                                        if (texPath != "") {
+                                            LOG_INFO("Texture at \"" + texPath + "\" does exist. Exchanging...");
+                                            heldEntity->entity.model.textures[i].remove();
+                                            Texture t;
+                                            t.ID = TextureFromFile(texPath);
+                                            t.type = heldEntity->entity.model.textures[i].type;
+                                            t.path = texPath;
+                                            heldEntity->entity.model.textures[i] = t;
+                                        }
                                     }
+                                    ImGui::PopStyleVar(1);
+                                    ImGui::SameLine();
+                                    ImGui::Text((heldEntity->entity.model.textures[i].type + "_" + std::to_string(i)).c_str());
                                 }
-                                ImGui::PopStyleVar(1);
-                                ImGui::SameLine();
-                                ImGui::Text((heldEntity->entity.model.textures[i].type + "_" + std::to_string(i)).c_str());
+                            }
+                        } else {
+                            if (ImGui::Button("+ Add model")) {
+                                LOG_INFO("Opening dialog for model selection (Entity:\"" + heldEntity->name + "\")");
+                                FileDialog fd;
+                                fd.filter = "All\0*.*\0OBJ Model (*.obj)\0*.obj\0FBX Model (*.fbx)\0*.fbx\0GLTF Model (*.gltf)\0*.gltf\0";
+                                fd.filter_id = 2;
+                                fd.path = heldEntity->entity.model.directory.c_str();
+                                std::string modelPath = fd.open();
+                                if (modelPath != "") {
+                                    std::filesystem::current_path(lastPath);
+                                    LOG_INFO("Model at \"" + modelPath + "\" does exist. Exchanging...");
+                                    heldEntity->entity.loadFromFile(modelPath);
+                                }
                             }
                         }
                     }
@@ -710,33 +726,39 @@ class EditorApp : public App {
             }
             ImGui::End();
         }
-        if (sceneContentViewOpen) {
+        if(sceneContentViewOpen) {
             ImGui::Begin("Scene Content", &sceneContentViewOpen);
-            for (size_t i = 0; i < entities.size(); i++) {
-                bool a = (heldEntityID == i);
-                if (ImGui::MenuItem(entities[i].name.c_str(), (const char*)0, &a)) {
-                    heldEntityID = i;
-                    heldEntity = &entities[i];
+            if(ImGui::CollapsingHeader("Scene")) {
+                for (size_t i = 0; i < scene.entities.size(); i++) {
+                    bool a = (heldEntityID == i);
+                    if (ImGui::MenuItem((scene[i].name + "##" + std::to_string(i)).c_str(), (const char*)0, &a)) {
+                        heldEntityID = i;
+                        heldEntity = &scene[i];
+                    }
+                }
+                if(ImGui::Button("+ Add entity")) {
+                    EditorObject obj = EditorObject{ "New Entity", Entity(), materialReg[4] };
+                    scene.entities.push_back(std::make_shared<EditorObject>(obj));
                 }
             }
             ImGui::End();
         }
-        if (atmosphereOpen) {
+        if(atmosphereOpen) {
             ImGui::Begin("Atmosphere", &atmosphereOpen);
             if (ImGui::CollapsingHeader("Directional Light")) {
-                FSImGui::DragFloat3("Direction", &atmos.directionalLight.direction);
+                FSImGui::DragFloat3("Direction", &scene.atmosphere.directionalLight.direction);
                 ImGui::Separator();
-                FSImGui::ColorEdit3("Ambient", &atmos.directionalLight.ambient);
-                FSImGui::ColorEdit3("Diffuse", &atmos.directionalLight.diffuse);
-                FSImGui::ColorEdit3("Specular", &atmos.directionalLight.specular);
+                FSImGui::ColorEdit3("Ambient", &scene.atmosphere.directionalLight.ambient);
+                FSImGui::ColorEdit3("Diffuse", &scene.atmosphere.directionalLight.diffuse);
+                FSImGui::ColorEdit3("Specular", &scene.atmosphere.directionalLight.specular);
             }
             if (ImGui::CollapsingHeader("Fog")) {
-                FSImGui::ColorEdit3("Color", &atmos.fog.color);
+                FSImGui::ColorEdit3("Color", &scene.atmosphere.fog.color);
                 ImGui::Separator();
-                ImGui::DragFloat("Start", &atmos.fog.start, 0.1f);
-                ImGui::DragFloat("End", &atmos.fog.end, 0.1f);
-                ImGui::DragFloat("Density", &atmos.fog.density, 0.1f);
-                ImGui::DragInt("Equation", &atmos.fog.equation, 1, 0, 2);
+                ImGui::DragFloat("Start", &scene.atmosphere.fog.start, 0.1f);
+                ImGui::DragFloat("End", &scene.atmosphere.fog.end, 0.1f);
+                ImGui::DragFloat("Density", &scene.atmosphere.fog.density, 0.1f);
+                ImGui::DragInt("Equation", &scene.atmosphere.fog.equation, 1, 0, 2);
             }
             if (ImGui::CollapsingHeader("Camera")) {
                 FSImGui::DragFloat3("Position", &camera.pos);
@@ -745,17 +767,6 @@ class EditorApp : public App {
                 ImGui::DragFloat2("Planes", planes, 0.1f);
                 ImGui::Checkbox("Is Perspective", &camera.isPerspective);
                 ImGui::DragFloat("Field of View", &camera.fov, 0.01f);
-                ImGui::Checkbox("Override private properties", &overrideAspect);
-                if (ImGui::IsItemHovered()) {
-                    ImGui::BeginTooltip();
-                    ImGui::Text("!!! WARNING !!!");
-                    ImGui::Text(u8"Если вы не знаете, что делают эти параметры - не трогайте их.");
-                    ImGui::EndTooltip();
-                }
-                if (overrideAspect) {
-                    ImGui::DragFloat("Aspect", &camera.aspect, 0.01f);
-                    ImGui::DragFloat("Clip space", &clipSpace, 0.01f);
-                }
             }
             if (ImGui::CollapsingHeader("Post-processing")) {
                 ImGui::DragFloat("Gamma", &gamma, 0.05f);
@@ -829,7 +840,7 @@ class EditorApp : public App {
             }
             ImGui::End();
         }
-        if (soundMixerOpen) {
+        if(soundMixerOpen) {
             ImGui::Begin("Sound Mixer", &soundMixerOpen);
             {
                 ImGui::BeginGroup();
@@ -847,10 +858,10 @@ class EditorApp : public App {
                 }
                 ImGui::EndDisabled();
                 if (ImGui::Button("M##Background")) {
-                    if (!bgMuted) preMuteGain = alBG.gain;
+                    if (!bgMuted) preMuteBgGain = alBG.gain;
                     bgMuted = !bgMuted;
                     if (bgMuted) alBG.gain = 0;
-                    else alBG.gain = preMuteGain;
+                    else alBG.gain = preMuteBgGain;
                     FSOAL::setGain(&audio, alBG);
                 }
                 val = std::to_string(alBG.pitch);
@@ -875,10 +886,10 @@ class EditorApp : public App {
                 }
                 ImGui::EndDisabled();
                 if (ImGui::Button("M##SFX")) {
-                    if (!sfxMuted) preMuteGain = alSFX.gain;
+                    if (!sfxMuted) preMuteSfxGain = alSFX.gain;
                     sfxMuted = !sfxMuted;
                     if (sfxMuted) alSFX.gain = 0;
-                    else alSFX.gain = preMuteGain;
+                    else alSFX.gain = preMuteSfxGain;
                     FSOAL::setGain(&phoneAmbience, alSFX);
                 }
                 val = std::to_string(alSFX.pitch);
@@ -888,7 +899,7 @@ class EditorApp : public App {
             }
             ImGui::End();
         }
-        if (lightingOpen) {
+        if(lightingOpen) {
             ImGui::Begin("Lighting", &lightingOpen);
             if (ImGui::CollapsingHeader("Point Light [1]")) {
                 FSImGui::DragFloat3("Position##pl0", &pLight.position);
@@ -910,7 +921,7 @@ class EditorApp : public App {
             }
             ImGui::End();
         }
-        if (undoHistoryOpen) {
+        if(undoHistoryOpen) {
             ImGui::Begin("Undo History", &undoHistoryOpen);
             for (size_t i = 0; i < 4; i++) {
                 ImGui::BeginGroup();
@@ -920,7 +931,7 @@ class EditorApp : public App {
             ImGui::End();
         }
 
-        if (texViewOpen) {
+        if(texViewOpen) {
             ImGui::Begin("Texture Viewer", &texViewOpen);
             float wW = ImGui::GetWindowWidth();
             int column = 3;
@@ -951,7 +962,7 @@ class EditorApp : public App {
             glActiveTexture(GL_TEXTURE0);
             ImGui::End();
         }
-        if (fullTexViewOpen) {
+        if(fullTexViewOpen) {
             ImGui::Begin("Full Texture Viewer", &fullTexViewOpen);
             glActiveTexture(GL_TEXTURE10);
             glBindTexture(GL_TEXTURE_2D, texID);
@@ -960,14 +971,13 @@ class EditorApp : public App {
             glActiveTexture(GL_TEXTURE0);
             ImGui::End();
         }
-        if (consoleOpen) {
+        if(consoleOpen) {
             ImGui::Begin("Console", &consoleOpen);
             if (consoleDevMode) {
                 if (ImGui::Button(u8"Ошибки")) switchedToDevConsole = false;
                 ImGui::SameLine();
                 if (ImGui::Button(u8"Консоль")) switchedToDevConsole = true;
-            }
-            else switchedToDevConsole = false;
+            } else switchedToDevConsole = false;
             if (consoleDevMode && switchedToDevConsole) {
                 ImGui::Text(consoleLog.c_str());
                 ImGuiInputTextFlags inputTextFlags =
@@ -988,49 +998,40 @@ class EditorApp : public App {
 - amogus\n Don't you dare.\n";
                         consoleLog += hlpstr;
                         LOG(hlpstr);
-                    }
-                    else if (consoleInputs[0] == "exit") {
+                    } else if (consoleInputs[0] == "exit") {
                         window.close();
-                    }
-                    else if (consoleInputs[0] == "amogus") {
+                    } else if (consoleInputs[0] == "amogus") {
                         const char* amstr = " Bruh, this was obvious.\n";
                         consoleLog += amstr;
                         openURL("https://www.youtube.com/watch?v=dQw4w9WgXcQ");
                         LOG(amstr);
-                    }
-                    else if (consoleInputs[0] == "lua") {
+                    } else if (consoleInputs[0] == "lua") {
                         std::string code;
                         for (size_t i = 1; i < consoleInputs.size(); i++) code += consoleInputs[i] + " ";
                         luaL_dostring(L, code.c_str());
-                    }
-                    else if (consoleInputs[0] == "luaF") {
+                    } else if (consoleInputs[0] == "luaF") {
                         std::string path;
                         for (size_t i = 1; i < consoleInputs.size(); i++) path += consoleInputs[i] + " ";
                         luaL_dofile(L, path.c_str());
-                    }
-                    else if (consoleInputs[0] == "extencions") {
+                    } else if (consoleInputs[0] == "extencions") {
                         if (consoleInputs[1] == "OpenAL") {
                             std::string exts = gimmeOALExtencions();
                             consoleLog += exts;
                             LOG(exts);
-                        }
-                        else if (consoleInputs[1] == "OpenGL") {
+                        } else if (consoleInputs[1] == "OpenGL") {
                             std::string exts = gimmeOGLExtencions();
                             consoleLog += exts;
                             LOG(exts);
-                        }
-                        else if (consoleInputs[1] == "Vulkan") {
+                        } else if (consoleInputs[1] == "Vulkan") {
                             std::string exts = gimmeVulkanExtencions();
                             consoleLog += exts;
                             LOG(exts);
-                        }
-                        else {
+                        } else {
                             const char* invExtStr = "Unknown extencion source";
                             consoleLog += invExtStr;
                             LOG(invExtStr);
                         }
-                    }
-                    else {
+                    } else {
                         const char* invstr = " Invalid command.\n";
                         consoleLog += invstr;
                         LOG(invstr);
@@ -1038,15 +1039,11 @@ class EditorApp : public App {
                     consoleInput.clear();
                 }
                 ImGui::PopItemWidth();
-            }
-            else {
-                ImGui::Text(u8"Нет ошибок");
-            }
+            } else ImGui::Text(u8"Нет ошибок");
             ImGui::End();
         }
-        if (themeningEnabled && themeningOpen) imgConf.drawThemeEditor(&themeningOpen);
-
-        if (debugInfoOpen) {
+        if(themeningEnabled && themeningOpen) imgConf.drawThemeEditor(&themeningOpen);
+        if(debugInfoOpen) {
             ImGui::Begin("Debug Info", &debugInfoOpen);
             ImGui::Text(("FPS: " + std::to_string(fps)).c_str());
             ImGui::Text(("Delta time: " + std::to_string(deltaTime)).c_str());
@@ -1060,7 +1057,43 @@ class EditorApp : public App {
             ImGui::Checkbox("Invert mouse Y", &mouseInvertY);
             ImGui::End();
         }
-
+        if(inputTesterOpen) {
+            ImGui::Begin("Input Tester", &inputTesterOpen);
+            ImGui::Text("Joystick ");
+            if(joystick.isPresent()) {
+                ImGui::SameLine();
+                ImGui::Text(joystick.getName());
+                if(joystick.getButtonCount()==18) {
+                    ImGui::SameLine();
+                    ImGui::Text(" (PlayStation)");
+                } else if(joystick.getButtonCount()==14) {
+                    ImGui::SameLine();
+                    ImGui::Text(" (XBOX)");
+                }
+                ImGui::BeginDisabled();
+                for (size_t i = 0; i < joystick.getAxesCount(); i++) {
+                    float ax = joystick.getAxis(i);
+                    ImGui::SliderFloat(("Axis #" + std::to_string(i)).c_str(), &ax, -1, 1);
+                }
+                for (size_t i = 0; i < joystick.getButtonCount(); i++) {
+                    unsigned char b = joystick.getButton(i);
+                    ImGui::Text(("Button #" + std::to_string(i) + ": " + std::to_string(b)).c_str());
+                }
+                ImGui::EndDisabled();
+            } else {
+                ImGui::BeginDisabled();
+                ImGui::Text("No joystick found.");
+                ImGui::EndDisabled();
+                if(ImGui::Button("Update")) {
+                    for (int i = 0; i < GLFW_JOYSTICK_LAST + 1; i++) {
+                        joystick.initialize(i);
+                        if(joystick.isPresent()) break;
+                    }
+                    if(joystick.isPresent()) joystick.printInfo();
+                }
+            }
+            ImGui::End();
+        }
 
         // Rendering
         FSImGui::Render(&window);
@@ -1141,30 +1174,38 @@ class EditorApp : public App {
         materialReg.push_back(Material().load("res/mats/lit_3d.material.json"));
         reloadShaders();
         pS.init();
-        // Load models.
-        //displayLoadingMsg("Loading city", &textShader, &window);
-        //Transform city("res/city/scene.gltf");
+
+        // Load de scene.
+        scene = Scene("res\\demo.scene.json", &sky);
+        //sky.load("res/FortPoint", "posz.jpg", "negz.jpg", "posy.jpg", "negy.jpg", "posx.jpg", "negx.jpg");
+        //sky.initialize(100);
+
+        // Load da models.
         displayLoadingMsg("Loading backpack", &materialReg[0].shader, &window);
-        entities.push_back(EditorObject{ "Backpack", Entity("res\\backpack\\backpack.obj", glm::vec3(0.f, 0.f, -1.f), glm::vec3(0), glm::vec3(0.5)), materialReg[4] });
+        EditorObject obj = EditorObject{ "Backpack", Entity("res\\backpack\\backpack.obj", glm::vec3(0.f, 0.f, -1.f), glm::vec3(0), glm::vec3(0.5)), materialReg[4] };
+        scene.entities.push_back(std::make_shared<EditorObject>(obj));
+
         displayLoadingMsg("Loading quad", &materialReg[0].shader, &window);
-        entities.push_back(EditorObject{ "Quad", Entity("res\\primitives\\quad.obj"), materialReg[1] });
+        obj = EditorObject{ "Quad", Entity("res\\primitives\\quad.obj"), materialReg[1] };
+        scene.entities.push_back(std::make_shared<EditorObject>(obj));
+
         displayLoadingMsg("Loading box", &materialReg[0].shader, &window);
-        entities.push_back(EditorObject{ "Box", Entity("res\\box\\box.obj", glm::vec3(-2.f, 0.f, 1.f)), materialReg[4] });
+        obj = EditorObject{ "Box", Entity("res\\box\\box.obj", glm::vec3(-2.f, 0.f, 1.f)), materialReg[4] };
+        scene.entities.push_back(std::make_shared<EditorObject>(obj));
+
         displayLoadingMsg("Loading phone booth", &materialReg[0].shader, &window);
-        entities.push_back(EditorObject{ "Phone booth", Entity("res\\phone-booth\\X.obj", glm::vec3(10.f, 0.f, 10.f), glm::vec3(0), glm::vec3(0.5f)), materialReg[4] });
+        obj = EditorObject{ "Phone booth", Entity("res\\phone-booth\\X.obj", glm::vec3(10.f, 0.f, 10.f), glm::vec3(0), glm::vec3(0.5f)), materialReg[4] };
+        scene.entities.push_back(std::make_shared<EditorObject>(obj));
+
         billTex = Texture{ TextureFromFile("res/yeah.png"), "texture_diffuse", "res/yeah.png" };
         pointLightBillTex = Texture{ TextureFromFile("res/billboards/point_light.png"), "texture_diffuse", "res/billboards/point_light.png" };
-        // Cubemap.
-        displayLoadingMsg("Creating cubemap", &materialReg[0].shader, &window);
-        sky.load("res/FortPoint", "posz.jpg", "negz.jpg", "posy.jpg", "negy.jpg", "posx.jpg", "negx.jpg");
-        sky.initialize(100);
         // Framebuffer.
         displayLoadingMsg("Creating FBO", &materialReg[0].shader, &window);
         ppFBO = Framebuffer(window.getSize(), 2);
         imguiFBO = Framebuffer(window.getSize());
         ppFBO.quad();
         if(!ppFBO.isComplete()) LOG_ERRR("Post-processing FBO isn't complete");
-        if(!imguiFBO.isComplete()) LOG_ERRR("ImGui Scene FBO isn't complete");
+        if(!imguiFBO.isComplete()) {LOG_ERRR("ImGui Scene FBO isn't complete"); drawImGUI=false;}
         camera.farPlane = 1000;
         sceneWinSize = window.getSize();
         // ImGUI setup.
@@ -1174,7 +1215,7 @@ class EditorApp : public App {
         reloadFonts(true);
         LOG_INFO("ImGui ready");
         newsTxtLoaded = StrFromFile("News.md");
-        //LuaBridge.
+        // LuaBridge.
         displayLoadingMsg("Initializing Lua", &materialReg[0].shader, &window);
         L = luaL_newstate();
         luaL_openlibs(L);
@@ -1261,12 +1302,15 @@ class EditorApp : public App {
                 .addFunction("crit", Log::log_critical)
                 .addFunction("custom", Log::log_c)
             .endNamespace()
+            //.beginNamespace("scene")
+            //    .addFunction("setPostion", setPosOfEnt)
+            //.endNamespace()
         .endNamespace();
         }
         luaL_dofile(L, "res/scripts/oninit.lua");
         luaL_dofile(L, "res/scripts/components/rotator.lua");
         getGlobal(L, "onstart")();
-        //OpenAL.
+        // OpenAL.
         phoneAmbience.init("res/audio/tone.wav", 0.1f, true)->setPostion(10.f, 0.f, 10.f)->play();
         audio.init("res/audio/harbour-port-ambience.mp3", 0.2f, true)->play();
         lastPath=std::filesystem::current_path();
@@ -1296,7 +1340,7 @@ class EditorApp : public App {
             window.clearBuffers();
             wireframeEnabled ? glPolygonMode(GL_FRONT_AND_BACK, GL_LINE) : glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
         }
-        glm::mat4 projection = camera.getProjection(clipSpace);
+        glm::mat4 projection = camera.getProjection(1);
         glm::mat4 view = camera.getView();
         glm::mat4 model = glm::mat4(1.0f);
         /* Prerender processing */ {
@@ -1310,7 +1354,7 @@ class EditorApp : public App {
                 materialReg[i].setInt("drawMode", drawMode);
                 materialReg[i].setInt("time", static_cast<int>(glfwGetTime()));
                 if(materialReg[i].type == 0) {
-                    atmos.setParams(&materialReg[i].shader);
+                    scene.atmosphere.setParams(&materialReg[i].shader);
                     materialReg[i].setInt("lightingType", lightingMode);
                     materialReg[i].setInt("skybox", 11);
                     materialReg[i].setInt("numPointLights", 1);
@@ -1325,42 +1369,36 @@ class EditorApp : public App {
         }
         sky.draw(&materialReg[3].shader);
         /* Draw billboard */ {
-            entities[1].entity.transform.Position = glm::vec3(0.f, 5.f, 0.f);
+            scene[1].entity.transform.Position = glm::vec3(0.f, 5.f, 0.f);
             billTex.bind();
             materialReg[1].enable();
             materialReg[1].setVec3("color", glm::vec3(1));
             materialReg[1].setVec2("size", glm::vec2(1.f));
-            entities[1].draw();
+            scene[1].draw();
             Texture::unbind();
         }
         /* Draw pseudo-gizmos */ {
             if (displayGizmos) {
-                entities[1].entity.transform.Position = pLight.position;
+                scene[1].entity.transform.Position = pLight.position;
                 glDepthFunc(GL_ALWAYS);
                 pointLightBillTex.bind();
                 materialReg[1].setVec3("color", pLight.diffuse);
                 materialReg[1].setVec2("size", glm::vec2(0.25f));
                 materialReg[1].setMat4("model", model);
-                entities[1].draw();
+                scene[1].draw();
                 Texture::unbind();
                 glDepthFunc(GL_LESS);
             }
         }
         /* Render backpack */ {
-            entities[0].material.enable();
-            entities[0].material.setFloat("material.emissionFactor", 2.5f);
-            entities[0].draw();
+            scene[0].draw();
         }
         /* Render box */ {
-            entities[2].entity.transform.Rotation = glm::vec3((float)glfwGetTime() * -10.0f);
-            entities[2].material.enable();
-            entities[2].material.setVec3("material.emissionColor", glm::vec3(0.0f, 0.5f, 0.69f));
-            entities[2].draw();
+            scene[2].entity.transform.Rotation = glm::vec3((float)glfwGetTime() * -10.0f);
+            scene[2].draw();
         }
         /* Render phone booth */ {
-            entities[3].material.enable();
-            entities[3].material.setVec3("material.emissionColor", glm::vec3(1));
-            entities[3].draw();
+            scene[3].draw();
         }
         /* Particle system */ {
             model = glm::mat4(1.0f);
@@ -1389,9 +1427,9 @@ class EditorApp : public App {
         FSOAL::deinitialize();
         LOG_INFO("OpenAL terminated.");
         // Materials & objects
-        for (size_t i = 0; i < entities.size(); i++)
-            entities[i].remove();
-        entities.clear();
+        for (size_t i = 0; i < scene.entities.size(); i++)
+            scene[i].remove();
+        scene.entities.clear();
         for (size_t i = 0; i < materialReg.size(); i++)
             materialReg[i].remove();
         materialReg.clear();
@@ -1411,6 +1449,7 @@ static void saveConfig() {
 
     txt["dev"]["consoleDevMode"] = consoleDevMode;
     txt["dev"]["backupLogs"] = backupLogs;
+    txt["dev"]["inputTesterOpen"] = inputTesterOpen;
     txt["dev"]["shdrParamMaterialGenPreview"] = shdrParamMaterialGenPreview;
     txt["dev"]["themeningEnabled"] = themeningEnabled;
     txt["dev"]["themeningOpen"] = themeningOpen;
@@ -1448,6 +1487,7 @@ static void loadConfig() {
     if(!txt["dev"].is_null()) {
         if(!txt["dev"]["backupLogs"].is_null())                     backupLogs = txt["dev"]["backupLogs"];
         if(!txt["dev"]["consoleDevMode"].is_null())                 consoleDevMode = txt["dev"]["consoleDevMode"];
+        if(!txt["dev"]["inputTesterOpen"].is_null())                inputTesterOpen = txt["dev"]["inputTesterOpen"];
         if(!txt["dev"]["shdrParamMaterialGenPreview"].is_null())    shdrParamMaterialGenPreview = txt["dev"]["shdrParamMaterialGenPreview"];
         if(!txt["dev"]["themeningEnabled"].is_null())               themeningEnabled = txt["dev"]["themeningEnabled"];
         if(!txt["dev"]["themeningOpen"].is_null())                  themeningOpen = txt["dev"]["themeningOpen"];
@@ -1487,8 +1527,8 @@ void processInput(Window* tWin, GLFWwindow* tPtr, float tDeltaTime, Joystick* jo
 
     if(Keyboard::keyDown(KeyCode::F1)) openURL("http://devs.xanytka.ru/wiki/fse");
 
-    if((Keyboard::keyDown(KeyCode::LEFT_CONTROL) || Keyboard::keyDown(KeyCode::RIGHT_CONTROL))
-        && (Keyboard::keyDown(KeyCode::LEFT_ALT) || Keyboard::keyDown(KeyCode::RIGHT_ALT))) {
+    if((Keyboard::getKey(KeyCode::LEFT_CONTROL) || Keyboard::getKey(KeyCode::RIGHT_CONTROL))
+        && (Keyboard::getKey(KeyCode::LEFT_ALT) || Keyboard::getKey(KeyCode::RIGHT_ALT))) {
         if(Keyboard::keyDown(KeyCode::I) && !pressedImgToggleBtn) {
             pressedImgToggleBtn = true;
             drawImGUI = !drawImGUI;
@@ -1586,8 +1626,8 @@ void processInput(Window* tWin, GLFWwindow* tPtr, float tDeltaTime, Joystick* jo
     FSOAL::Listener::setPosition(camera.pos);
     FSOAL::Listener::setRotation(camera.Forward, camera.Up);
 
-    if(Keyboard::keyDown(KeyCode::V)) { wireframeEnabled = !wireframeEnabled; }
-    if(Keyboard::keyDown(KeyCode::F)) { sLightEnabled = !sLightEnabled; }
+    if(Keyboard::keyDown(KeyCode::V)) wireframeEnabled = !wireframeEnabled;
+    if(Keyboard::keyDown(KeyCode::F)) sLightEnabled = !sLightEnabled;
 
     joystick->update();
 }

@@ -38,13 +38,11 @@ namespace Firesteel {
 	public:
 		/// Sets up joystick input.
 		Joystick() {
-			mID = getID(0);
-			update();
+			initialize(0);
 		}
 		/// Sets up joystick input.
-		Joystick(int t_id) {
-			mID = getID(t_id);
-			update();
+		Joystick(int tID) {
+			initialize(tID);
 		}
 		/// General info about controller.
 		void printInfo() {
@@ -55,6 +53,11 @@ namespace Firesteel {
 			LOG_INFO(std::string("Joystick: ") + mName + " (" + std::to_string(mID) + ")");
 			LOG_INFO("Axes: " + std::to_string(mAxesCount));
 			LOG_INFO("Buttons: " + std::to_string(mButtonCount));
+		}
+
+		void initialize(int tID) {
+			mID = getGID(tID);
+			update();
 		}
 
 		/// Updates variables of joystick.
@@ -97,9 +100,10 @@ namespace Firesteel {
 			return mName;
 		}
 		/// Get input ID of joystick.
-		static int getID(int t_i) {
+		static int getGID(int t_i) {
 			return GLFW_JOYSTICK_1 + t_i;
 		}
+		int getID() const { return mID; }
 	private:
 		int mPresence;
 		int mID;

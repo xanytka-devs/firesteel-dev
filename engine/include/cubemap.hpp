@@ -10,7 +10,17 @@ namespace Firesteel {
     class Cubemap {
     public:
         Cubemap()
-            : m_has_textures(false), m_id(0), m_skybox_vao(0), m_skybox_vbo(0) {}
+            : mInitialized(false), mID(0), mVAO(0), mVBO(0) {}
+
+        void load(std::string tD,
+            std::string tR,
+            std::string tL,
+            std::string tT,
+            std::string tBot,
+            std::string tF,
+            std::string tBack) {
+            load(tD.c_str(), tR.c_str(), tL.c_str(), tT.c_str(), tBot.c_str(), tF.c_str(), tBack.c_str());
+        }
 
         void load(const char* t_dir,
             const char* t_right = "right.png",
@@ -20,16 +30,16 @@ namespace Firesteel {
             const char* t_front = "front.png",
             const char* t_back = "back.png") {
             //Setup.
-            m_dir = t_dir;
-            m_has_textures = true;
-            m_faces = { t_front, t_back, t_top, t_bottom, t_right, t_left };
+            mDir = t_dir;
+            mInitialized = true;
+            mFaces = { t_front, t_back, t_top, t_bottom, t_right, t_left };
             glActiveTexture(GL_TEXTURE11);
-            glGenTextures(1, &m_id);
-            glBindTexture(GL_TEXTURE_CUBE_MAP, m_id);
+            glGenTextures(1, &mID);
+            glBindTexture(GL_TEXTURE_CUBE_MAP, mID);
             //Load faces.
             int w, h, channels;
             for (unsigned int i = 0; i < 6; i++) {
-                unsigned char* data = stbi_load((m_dir + "/" + m_faces[i]).c_str(),
+                unsigned char* data = stbi_load((mDir + "/" + mFaces[i]).c_str(),
                     &w, &h, &channels, 0);
                 //Get color mode.
                 GLenum color_mode = GL_RED;
@@ -46,7 +56,7 @@ namespace Firesteel {
                     glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i,
                         0, color_mode, w, h, 0, color_mode, GL_UNSIGNED_BYTE, data);
                 else
-                    LOG_ERRR(std::string("Failed to load texture at \"") + (const char*)m_faces[i] + "\".");
+                    LOG_ERRR(std::string("Failed to load texture at \"") + (const char*)mFaces[i] + "\".");
                 //Free data.
                 stbi_image_free(data);
             }
@@ -61,11 +71,12 @@ namespace Firesteel {
         }
 
         void bind() const {
+            if(!mInitialized) return;
             glActiveTexture(GL_TEXTURE11);
-            glBindTexture(GL_TEXTURE_CUBE_MAP, m_id);
+            glBindTexture(GL_TEXTURE_CUBE_MAP, mID);
         }
 
-        unsigned int getID() const { return m_id; }
+        unsigned int getID() const { return mID; }
 
         //void load(const char* t_cb_file_path) {
         //    clear();
@@ -123,45 +134,46 @@ namespace Firesteel {
                  1.0f * t_size, -1.0f * t_size,  1.0f * t_size
             };
             //Create buffers and arrays.
-            glGenVertexArrays(1, &m_skybox_vao);
-            glGenBuffers(1, &m_skybox_vbo);
-            glBindVertexArray(m_skybox_vao);
-            glBindBuffer(GL_ARRAY_BUFFER, m_skybox_vbo);
+            glGenVertexArrays(1, &mVAO);
+            glGenBuffers(1, &mVBO);
+            glBindVertexArray(mVAO);
+            glBindBuffer(GL_ARRAY_BUFFER, mVBO);
             glBufferData(GL_ARRAY_BUFFER, sizeof(skybox_vert), &skybox_vert, GL_STATIC_DRAW);
             glEnableVertexAttribArray(0);
             glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
         }
 
         void draw(const Shader* t_shader) const {
+            if(!mInitialized) return;
             glDepthFunc(GL_LEQUAL);
             t_shader->enable();
             //Skybox cube.
-            glBindVertexArray(m_skybox_vao);
+            glBindVertexArray(mVAO);
             glActiveTexture(GL_TEXTURE0);
-            glBindTexture(GL_TEXTURE_CUBE_MAP, m_id);
+            glBindTexture(GL_TEXTURE_CUBE_MAP, mID);
             glDrawArrays(GL_TRIANGLES, 0, 36);
             glBindVertexArray(0);
             glDepthFunc(GL_LESS);
         }
 
         void clear() {
-            glDeleteTextures(1, &m_id);
-            m_faces.clear();
+            glDeleteTextures(1, &mID);
+            mFaces.clear();
         }
 
         void remove() {
-            glDeleteVertexArrays(1, &m_skybox_vao);
-            glDeleteBuffers(1, &m_skybox_vbo);
+            glDeleteVertexArrays(1, &mVAO);
+            glDeleteBuffers(1, &mVBO);
             clear();
         }
 
         ~Cubemap() { remove(); }
     private:
-        unsigned int m_skybox_vao, m_skybox_vbo;
-        unsigned int m_id;
-        std::string m_dir;
-        std::vector<const char*> m_faces;
-        bool m_has_textures;
+        unsigned int mVAO, mVBO;
+        unsigned int mID;
+        std::string mDir;
+        std::vector<const char*> mFaces;
+        bool mInitialized;
     };
 }
 
