@@ -1,27 +1,20 @@
 {
-	"version": 1,
 	"atm": {
+		"cubemap": {
+			"cfg": "res/FortPoint/skybox.cubemap",
+			"size": 100
+		},
 		"dLight": {
-			"dir": [0.0,0.0,0.0],
 			"amb": [0.2,0.2,0.2],
 			"diff": [1.0,1.0,1.0],
+			"dir": [0.0,0.0,0.0],
 			"spec": [0.5,0.5,0.5]
 		},
 		"fog": {
-			"dnst": 0.04,
 			"clr": [0.2,0.2,0.2],
+			"dnst": 0.04,
 			"equ": 1,
 			"points": [20.0,25.0]
-		},
-		"cubemap": {
-			"dir": "res/FortPoint",
-			"size": 100,
-			"posX": "posx.jpg",
-			"negX": "negx.jpg",
-			"posY": "posy.jpg",
-			"negY": "negy.jpg",
-			"posZ": "posz.jpg",
-			"negZ": "negz.jpg"
 		}
 	},
 	"entities": [
@@ -46,5 +39,6 @@
 			"rot": [0.0,0.0,0.0],
 			"siz": [0.5,0.5,0.5]
 		}
-	]
+	],
+	"version": 1
 }

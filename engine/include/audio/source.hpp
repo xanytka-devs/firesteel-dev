@@ -24,13 +24,15 @@ namespace FSOAL {
 		~Source() { remove(); }
 
 		bool initialize() {
+			if(!globalInitState) return false;
 			alGetError(); // clear error code 
 			alGenBuffers(1, &mBuffer);
 			alGenSources(1, &mSource);
 			return alGetError() != AL_NO_ERROR;
 		}
 		bool initialize(std::string tSrc, float tGain = 1.0f, bool tLooping = false) {
-			if (mInited) remove();
+			if(!globalInitState) return false;
+			if(mInited) remove();
 			alGetError(); // clear error code 
 			alGenBuffers(1, &mBuffer);
 			alGenSources(1, &mSource);
@@ -41,11 +43,12 @@ namespace FSOAL {
 			return true;
 		}
 		Source* init(std::string tSrc, float tGain = 1.0f, bool tLooping = false) {
-			if (mInited) remove();
+			if(!globalInitState) return nullptr;
+			if(mInited) remove();
 			alGetError(); // clear error code 
 			alGenBuffers(1, &mBuffer);
 			alGenSources(1, &mSource);
-			if (alGetError() != AL_NO_ERROR) return nullptr;
+			if(alGetError() != AL_NO_ERROR) return nullptr;
 			load(tSrc);
 			setGain(tGain);
 			setLooping(tLooping);
@@ -53,6 +56,7 @@ namespace FSOAL {
 			return this;
 		}
 		void remove() {
+			if(!globalInitState) return;
 			stop();
 			alDeleteSources(1, &mSource);
 			alDeleteBuffers(1, &mBuffer);
@@ -60,6 +64,7 @@ namespace FSOAL {
 		}
 
 		bool load(std::string tSrc) {
+			if(!globalInitState) return false;
 			if(!_loadWav(tSrc.c_str()))
 				if(!_loadMP3(tSrc.c_str())) 
 					if (!_loadFLAC(tSrc.c_str())) {
@@ -77,15 +82,19 @@ namespace FSOAL {
 		}
 
 		void play() const {
+			if(!globalInitState) return;
 			alSourcePlay(mSource);
 		}
 		void stop() const {
+			if(!globalInitState) return;
 			alSourceStop(mSource);
 		}
 		void pause() const {
+			if(!globalInitState) return;
 			alSourcePause(mSource);
 		}
 		void resume() const {
+			if(!globalInitState) return;
 			play();
 		}
 
@@ -96,44 +105,53 @@ namespace FSOAL {
 		bool isLooping() const { return mLooping; }
 
 		Source* setPostion(glm::vec3 tPos) {
+			if(!globalInitState) return this;
 			mPosition = tPos;
 			alSource3f(mSource, AL_POSITION, mPosition.x, mPosition.y, mPosition.z);
 			return this;
 		}
 		Source* setPostion(float tX, float tY, float tZ) {
+			if(!globalInitState) return this;
 			mPosition = glm::vec3(tX,tY,tZ);
 			alSource3f(mSource, AL_POSITION, mPosition.x, mPosition.y, mPosition.z);
 			return this;
 		}
 		Source* setVelocity(glm::vec3 tVel) {
+			if(!globalInitState) return this;
 			mVelocity = tVel;
 			alSource3f(mSource, AL_VELOCITY, mVelocity.x, mVelocity.y, mVelocity.z);
 			return this;
 		}
 		Source* setVelocity(float tX, float tY, float tZ) {
+			if(!globalInitState) return this;
 			mVelocity = glm::vec3(tX, tY, tZ);
 			alSource3f(mSource, AL_VELOCITY, mVelocity.x, mVelocity.y, mVelocity.z);
 			return this;
 		}
 		Source* setGain(float tGain) {
+			if(!globalInitState) return this;
 			mGain = tGain;
 			alSourcef(mSource, AL_GAIN, mGain);
 			return this;
 		}
 		Source* setTempGain(float tGain) {
+			if(!globalInitState) return this;
 			alSourcef(mSource, AL_GAIN, tGain);
 			return this;
 		}
 		Source* setPitch(float tPitch) {
+			if(!globalInitState) return this;
 			mPitch = tPitch;
 			alSourcef(mSource, AL_PITCH, mPitch);
 			return this;
 		}
 		Source* setTempPitch(float tPitch) {
+			if(!globalInitState) return this;
 			alSourcef(mSource, AL_PITCH, tPitch);
 			return this;
 		}
 		Source* setLooping(bool tLoop) {
+			if(!globalInitState) return this;
 			mLooping = tLoop;
 			alSourcei(mSource, AL_LOOPING, mLooping ? AL_TRUE : AL_FALSE);
 			return this;

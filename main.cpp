@@ -3,7 +3,6 @@
 #include "engine/include/cubemap.hpp"
 #include "engine/include/entity.hpp"
 #include "engine/include/fbo.hpp"
-#include "engine/include/particles.hpp"
 #include "engine/include/input/input.hpp"
 #include "engine/include/app.hpp"
 #include "engine/include/utils/json.hpp"
@@ -89,7 +88,6 @@ GLuint texID = 0;
 bool drawSkybox = true;
 int loadedW = 800, loadedH = 600;
 glm::vec2 sceneWinSize;
-const std::string GLOBAL_VER = "0.2.0.6";
 
 float gamma = 1.f;
 float shaderContrast = 1;
@@ -214,7 +212,6 @@ class EditorApp : public App {
     Texture billTex, pointLightBillTex;
     Framebuffer ppFBO, imguiFBO;
     Shader fboShader, defaultShader;
-    ParticleSystem pS = ParticleSystem(glm::vec3(0, 0, 0), 500, "res/yeah.png", false);
     imgui_conf imgConf;
     Joystick joystick;
     Cubemap sky;
@@ -228,6 +225,7 @@ class EditorApp : public App {
 
     ActionRegistry actions;
     lua_State* L = nullptr;
+    bool luaInit = false;
 
     void setPosOfEnt(int tID, float tX, float tY, float tZ) {
         scene[tID].entity.transform.Position = glm::vec3(tX, tY, tZ);
@@ -356,7 +354,7 @@ class EditorApp : public App {
                     fd.filter_id = 2;
                     std::string res = fd.save();
                     if (res != "") {
-                        scene.save(res.c_str());
+                        scene.save(res.c_str(), &sky);
                         std::filesystem::current_path(lastPath);
                         LOG_INFO("Saved scene to \"" + res + "\".");
                         didSaveCurPrj = true;
@@ -731,9 +729,9 @@ class EditorApp : public App {
             if(ImGui::CollapsingHeader("Scene")) {
                 for (size_t i = 0; i < scene.entities.size(); i++) {
                     bool a = (heldEntityID == i);
-                    if (ImGui::MenuItem((scene[i].name + "##" + std::to_string(i)).c_str(), (const char*)0, &a)) {
+                    if (ImGui::MenuItem((scene[static_cast<int>(i)].name + "##" + std::to_string(i)).c_str(), (const char*)0, &a)) {
                         heldEntityID = i;
-                        heldEntity = &scene[i];
+                        heldEntity = &scene[static_cast<int>(i)];
                     }
                 }
                 if(ImGui::Button("+ Add entity")) {
@@ -1072,11 +1070,11 @@ class EditorApp : public App {
                 }
                 ImGui::BeginDisabled();
                 for (size_t i = 0; i < joystick.getAxesCount(); i++) {
-                    float ax = joystick.getAxis(i);
+                    float ax = joystick.getAxis(static_cast<int>(i));
                     ImGui::SliderFloat(("Axis #" + std::to_string(i)).c_str(), &ax, -1, 1);
                 }
                 for (size_t i = 0; i < joystick.getButtonCount(); i++) {
-                    unsigned char b = joystick.getButton(i);
+                    unsigned char b = joystick.getButton(static_cast<int>(i));
                     ImGui::Text(("Button #" + std::to_string(i) + ": " + std::to_string(b)).c_str());
                 }
                 ImGui::EndDisabled();
@@ -1160,10 +1158,17 @@ class EditorApp : public App {
         displayLoadingMsg("Initializing OpenGL", &materialReg[0].shader, &window);
         // OpenAL setup.
         displayLoadingMsg("Initializing OpenAL", &materialReg[0].shader, &window);
-        FSOAL::initialize();
+#ifndef NDEBUG
+        if(std::filesystem::exists("OpenAL32d.dll")) FSOAL::initialize();
+#else
+        if(std::filesystem::exists("OpenAL32.dll")) FSOAL::initialize();
+#endif // !NDEBUG
+        if(!FSOAL::globalInitState) { LOG_WARN("Couldn't initialize OpenAL (probably the library DLL is missing)."); }
+        else {
+            LOG_INFO("OpenAL context created:");
+            LOG_INFO(std::string("	Device: ") + alcGetString(NULL, ALC_DEFAULT_DEVICE_SPECIFIER));
+        }
         audio.init("res/audio/elevator-music.mp3", 0.2f, true)->play();
-        LOG_INFO("OpenAL context created:");
-        LOG_INFO(std::string("	Device: ") + alcGetString(NULL, ALC_DEFAULT_DEVICE_SPECIFIER));
         // Shaders.
         displayLoadingMsg("Compiling shaders", &materialReg[0].shader, &window);
         materialTypes.push_back("Lit");
@@ -1173,13 +1178,10 @@ class EditorApp : public App {
         materialReg.push_back(Material().load("res/mats/skybox.material.json"));
         materialReg.push_back(Material().load("res/mats/lit_3d.material.json"));
         reloadShaders();
-        pS.init();
-
         // Load de scene.
         scene = Scene("res\\demo.scene.json", &sky);
         //sky.load("res/FortPoint", "posz.jpg", "negz.jpg", "posy.jpg", "negy.jpg", "posx.jpg", "negx.jpg");
         //sky.initialize(100);
-
         // Load da models.
         displayLoadingMsg("Loading backpack", &materialReg[0].shader, &window);
         EditorObject obj = EditorObject{ "Backpack", Entity("res\\backpack\\backpack.obj", glm::vec3(0.f, 0.f, -1.f), glm::vec3(0), glm::vec3(0.5)), materialReg[4] };
@@ -1217,99 +1219,102 @@ class EditorApp : public App {
         newsTxtLoaded = StrFromFile("News.md");
         // LuaBridge.
         displayLoadingMsg("Initializing Lua", &materialReg[0].shader, &window);
-        L = luaL_newstate();
-        luaL_openlibs(L);
-        lua_pcall(L, 0, 0, 0);
-        {
-        size_t cmd_v[] = {
-            CMD_F_BLACK   ,
-            CMD_F_BLUE    ,
-            CMD_F_GREEN   ,
-            CMD_F_CYAN    ,
-            CMD_F_RED     ,
-            CMD_F_PURPLE  ,
-            CMD_F_YELLOW  ,
-            CMD_F_GRAY    ,
-            CMD_F_LBLACK  ,
-            CMD_F_LBLUE   ,
-            CMD_F_LGREEN  ,
-            CMD_F_LCYAN   ,
-            CMD_F_LRED    ,
-            CMD_F_LPURPLE ,
-            CMD_F_LYELLOW ,
-            CMD_F_WHITE   ,
+        if(std::filesystem::exists("lua54.lib")) {
+            L = luaL_newstate();
+            luaL_openlibs(L);
+            lua_pcall(L, 0, 0, 0);
+            {
+                size_t cmd_v[] = {
+                    CMD_F_BLACK   ,
+                    CMD_F_BLUE    ,
+                    CMD_F_GREEN   ,
+                    CMD_F_CYAN    ,
+                    CMD_F_RED     ,
+                    CMD_F_PURPLE  ,
+                    CMD_F_YELLOW  ,
+                    CMD_F_GRAY    ,
+                    CMD_F_LBLACK  ,
+                    CMD_F_LBLUE   ,
+                    CMD_F_LGREEN  ,
+                    CMD_F_LCYAN   ,
+                    CMD_F_LRED    ,
+                    CMD_F_LPURPLE ,
+                    CMD_F_LYELLOW ,
+                    CMD_F_WHITE   ,
 
-            CMD_BG_BLACK  ,
-            CMD_BG_BLUE   ,
-            CMD_BG_GREEN  ,
-            CMD_BG_CYAN   ,
-            CMD_BG_RED    ,
-            CMD_BG_PURPLE ,
-            CMD_BG_YELLOW ,
-            CMD_BG_GRAY   ,
-            CMD_BG_LBLACK ,
-            CMD_BG_LBLUE  ,
-            CMD_BG_LGREEN ,
-            CMD_BG_LCYAN  ,
-            CMD_BG_LRED   ,
-            CMD_BG_LPURPLE,
-            CMD_BG_LYELLOW,
-            CMD_BG_WHITE
-        };
-        getGlobalNamespace(L)
-        .beginNamespace("fs")
-            .addConstant("version", GLOBAL_VER.c_str())
-            .beginNamespace("log")
-                .beginNamespace("f_color")
-                    .addConstant("black"  , &cmd_v[0])
-                    .addConstant("blue"   , &cmd_v[1])
-                    .addConstant("green"  , &cmd_v[2])
-                    .addConstant("cyan"   , &cmd_v[3])
-                    .addConstant("red"    , &cmd_v[4])
-                    .addConstant("purple" , &cmd_v[5])
-                    .addConstant("yellow" , &cmd_v[6])
-                    .addConstant("gray"   , &cmd_v[7])
-                    .addConstant("lblack" , &cmd_v[8])
-                    .addConstant("lblue"  , &cmd_v[9])
-                    .addConstant("lgreen" , &cmd_v[10])
-                    .addConstant("lcyan"  , &cmd_v[11])
-                    .addConstant("lred"   , &cmd_v[12])
+                    CMD_BG_BLACK  ,
+                    CMD_BG_BLUE   ,
+                    CMD_BG_GREEN  ,
+                    CMD_BG_CYAN   ,
+                    CMD_BG_RED    ,
+                    CMD_BG_PURPLE ,
+                    CMD_BG_YELLOW ,
+                    CMD_BG_GRAY   ,
+                    CMD_BG_LBLACK ,
+                    CMD_BG_LBLUE  ,
+                    CMD_BG_LGREEN ,
+                    CMD_BG_LCYAN  ,
+                    CMD_BG_LRED   ,
+                    CMD_BG_LPURPLE,
+                    CMD_BG_LYELLOW,
+                    CMD_BG_WHITE
+                };
+                getGlobalNamespace(L)
+                    .beginNamespace("fs")
+                    .addConstant("version", GLOBAL_VER.c_str())
+                    .beginNamespace("log")
+                    .beginNamespace("f_color")
+                    .addConstant("black", &cmd_v[0])
+                    .addConstant("blue", &cmd_v[1])
+                    .addConstant("green", &cmd_v[2])
+                    .addConstant("cyan", &cmd_v[3])
+                    .addConstant("red", &cmd_v[4])
+                    .addConstant("purple", &cmd_v[5])
+                    .addConstant("yellow", &cmd_v[6])
+                    .addConstant("gray", &cmd_v[7])
+                    .addConstant("lblack", &cmd_v[8])
+                    .addConstant("lblue", &cmd_v[9])
+                    .addConstant("lgreen", &cmd_v[10])
+                    .addConstant("lcyan", &cmd_v[11])
+                    .addConstant("lred", &cmd_v[12])
                     .addConstant("lpurple", &cmd_v[13])
                     .addConstant("lyellow", &cmd_v[14])
-                    .addConstant("white"  , &cmd_v[15])
-                .endNamespace()
-                .beginNamespace("b_color")
-                    .addConstant("black"  , &cmd_v[16])
-                    .addConstant("blue"   , &cmd_v[17])
-                    .addConstant("green"  , &cmd_v[18])
-                    .addConstant("cyan"   , &cmd_v[19])
-                    .addConstant("red"    , &cmd_v[20])
-                    .addConstant("purple" , &cmd_v[21])
-                    .addConstant("yellow" , &cmd_v[22])
-                    .addConstant("gray"   , &cmd_v[23])
-                    .addConstant("lblack" , &cmd_v[23])
-                    .addConstant("lblue"  , &cmd_v[24])
-                    .addConstant("lgreen" , &cmd_v[25])
-                    .addConstant("lcyan"  , &cmd_v[26])
-                    .addConstant("lred"   , &cmd_v[27])
+                    .addConstant("white", &cmd_v[15])
+                    .endNamespace()
+                    .beginNamespace("b_color")
+                    .addConstant("black", &cmd_v[16])
+                    .addConstant("blue", &cmd_v[17])
+                    .addConstant("green", &cmd_v[18])
+                    .addConstant("cyan", &cmd_v[19])
+                    .addConstant("red", &cmd_v[20])
+                    .addConstant("purple", &cmd_v[21])
+                    .addConstant("yellow", &cmd_v[22])
+                    .addConstant("gray", &cmd_v[23])
+                    .addConstant("lblack", &cmd_v[23])
+                    .addConstant("lblue", &cmd_v[24])
+                    .addConstant("lgreen", &cmd_v[25])
+                    .addConstant("lcyan", &cmd_v[26])
+                    .addConstant("lred", &cmd_v[27])
                     .addConstant("lpurple", &cmd_v[28])
                     .addConstant("lyellow", &cmd_v[29])
-                    .addConstant("white"  , &cmd_v[30])
-                .endNamespace()
-                .addFunction("info", Log::log_info)
-                .addFunction("warn", Log::log_warn)
-                .addFunction("error", Log::log_error)
-                .addFunction("crit", Log::log_critical)
-                .addFunction("custom", Log::log_c)
-            .endNamespace()
-            //.beginNamespace("scene")
-            //    .addFunction("setPostion", setPosOfEnt)
-            //.endNamespace()
-        .endNamespace();
-        }
-        luaL_dofile(L, "res/scripts/oninit.lua");
-        luaL_dofile(L, "res/scripts/components/rotator.lua");
-        getGlobal(L, "onstart")();
+                    .addConstant("white", &cmd_v[30])
+                    .endNamespace()
+                    .addFunction("info", Log::log_info)
+                    .addFunction("warn", Log::log_warn)
+                    .addFunction("error", Log::log_error)
+                    .addFunction("crit", Log::log_critical)
+                    .addFunction("custom", Log::log_c)
+                    .endNamespace()
+                    //.beginNamespace("scene")
+                    //    .addFunction("setPostion", setPosOfEnt)
+                    //.endNamespace()
+                    .endNamespace();
+            }
+            luaL_dofile(L, "res/scripts/oninit.lua");
+            luaL_dofile(L, "res/scripts/components/rotator.lua");
+            getGlobal(L, "onstart")();
+            luaInit = true;
+        } else LOG_WARN("Couldn't initialize LuaBridge (probably the library DLL is missing).")
         // OpenAL.
         phoneAmbience.init("res/audio/tone.wav", 0.1f, true)->setPostion(10.f, 0.f, 10.f)->play();
         audio.init("res/audio/harbour-port-ambience.mp3", 0.2f, true)->play();
@@ -1394,19 +1399,10 @@ class EditorApp : public App {
             scene[0].draw();
         }
         /* Render box */ {
-            scene[2].entity.transform.Rotation = glm::vec3((float)glfwGetTime() * -10.0f);
             scene[2].draw();
         }
         /* Render phone booth */ {
             scene[3].draw();
-        }
-        /* Particle system */ {
-            model = glm::mat4(1.0f);
-            model = glm::translate(model, glm::vec3(5.f, 0.f, 0.f));
-            materialReg[3].enable();
-            materialReg[3].setMat4("model", model);
-            pS.update(deltaTime);
-            pS.draw(&materialReg[3].shader);
         }
         fboProcessing();
         if(drawNativeUI) drawNativeGUI();
@@ -1414,7 +1410,7 @@ class EditorApp : public App {
         if(glfwGetKey(window.ptr(), GLFW_KEY_F5) == GLFW_PRESS) reloadShaders();
     }
     virtual void onShutdown() override {
-        getGlobal(L, "onend")();
+        if(luaInit) getGlobal(L, "onend")();
         // ImGui
         loadedW = window.getWidth();
         loadedH = window.getHeight();
@@ -1428,10 +1424,10 @@ class EditorApp : public App {
         LOG_INFO("OpenAL terminated.");
         // Materials & objects
         for (size_t i = 0; i < scene.entities.size(); i++)
-            scene[i].remove();
+            scene[static_cast<int>(i)].remove();
         scene.entities.clear();
         for (size_t i = 0; i < materialReg.size(); i++)
-            materialReg[i].remove();
+            materialReg[static_cast<int>(i)].remove();
         materialReg.clear();
     }
 };

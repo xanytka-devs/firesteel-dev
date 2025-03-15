@@ -17,7 +17,7 @@ public:
 		mLoaded = loadFromSrc(tPath, tSky);
 	}
 
-	void save(const char* tPath) {
+	void save(const char* tPath, Cubemap* tSky) const {
 		nlohmann::json txt;
 
 		txt["version"] = 1;
@@ -36,6 +36,9 @@ public:
 		txt["atm"]["fog"]["dnst"] = atmosphere.fog.density;
 		txt["atm"]["fog"]["equ"] = atmosphere.fog.equation;
 		txt["atm"]["fog"]["points"] = { atmosphere.fog.start, atmosphere.fog.end};
+
+		txt["atm"]["cubemap"]["cfg"] = tSky->getCfgFile();
+		txt["atm"]["cubemap"]["size"] = tSky->getSize();
 
 		std::ofstream o(tPath);
 		o << std::setw(4) << txt << std::endl;
@@ -69,11 +72,9 @@ private:
 		atmosphere.fog.start = pts.x;
 		atmosphere.fog.end = pts.y;
 
-		if(!txt["atm"]["cubemap"].is_null() && std::filesystem::exists(txt["atm"]["cubemap"]["dir"])) {
-			tSky->load(txt["atm"]["cubemap"]["dir"],
-				txt["atm"]["cubemap"]["posZ"], txt["atm"]["cubemap"]["negZ"],
-				txt["atm"]["cubemap"]["posY"], txt["atm"]["cubemap"]["negY"],
-				txt["atm"]["cubemap"]["posX"], txt["atm"]["cubemap"]["negX"]);
+		if(!txt["atm"]["cubemap"].is_null() && std::filesystem::exists(txt["atm"]["cubemap"]["cfg"])) {
+			tSky->remove();
+			tSky->load(txt["atm"]["cubemap"]["cfg"]);
 			tSky->initialize(txt["atm"]["cubemap"]["size"]);
 		}
 

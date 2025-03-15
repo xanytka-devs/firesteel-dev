@@ -4,6 +4,7 @@
 #include "common.hpp"
 #include "shader.hpp"
 
+#include "utils/json.hpp"
 #include "utils/utils.hpp"
 
 namespace Firesteel {
@@ -20,6 +21,14 @@ namespace Firesteel {
             std::string tF,
             std::string tBack) {
             load(tD.c_str(), tR.c_str(), tL.c_str(), tT.c_str(), tBot.c_str(), tF.c_str(), tBack.c_str());
+        }
+
+        void load(std::string tCubemapJson) {
+            if(!std::filesystem::exists(tCubemapJson)) return;
+            mCfgFile = tCubemapJson;
+            std::ifstream ifs(tCubemapJson);
+            nlohmann::json txt = nlohmann::json::parse(ifs);
+            load(txt["dir"], txt["posZ"], txt["negZ"], txt["posY"], txt["negY"], txt["posX"], txt["negX"]);
         }
 
         void load(const char* t_dir,
@@ -89,6 +98,7 @@ namespace Firesteel {
 
         void initialize(const float& t_size) {
             // set up vertices
+            mSize = t_size;
             float skybox_vert[] = {
                 // positions          
                 -1.0f * t_size,  1.0f * t_size, -1.0f * t_size,
@@ -162,16 +172,20 @@ namespace Firesteel {
         }
 
         void remove() {
+            if(!mInitialized) return;
             glDeleteVertexArrays(1, &mVAO);
             glDeleteBuffers(1, &mVBO);
             clear();
         }
 
+        std::string getDirectory() const { return mDir; }
+        std::string getCfgFile() const { return mCfgFile; }
+        unsigned int getSize() const { return mSize; }
+
         ~Cubemap() { remove(); }
     private:
-        unsigned int mVAO, mVBO;
-        unsigned int mID;
-        std::string mDir;
+        unsigned int mVAO, mVBO, mID, mSize;
+        std::string mDir, mCfgFile;
         std::vector<const char*> mFaces;
         bool mInitialized;
     };
