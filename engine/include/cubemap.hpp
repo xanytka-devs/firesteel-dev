@@ -6,6 +6,7 @@
 
 #include "utils/json.hpp"
 #include "utils/utils.hpp"
+#include "utils/stbi_global.hpp"
 
 namespace Firesteel {
     class Cubemap {
@@ -46,13 +47,11 @@ namespace Firesteel {
             glGenTextures(1, &mID);
             glBindTexture(GL_TEXTURE_CUBE_MAP, mID);
             //Load faces.
-            int w, h, channels;
             for (unsigned int i = 0; i < 6; i++) {
-                unsigned char* data = stbi_load((mDir + "/" + mFaces[i]).c_str(),
-                    &w, &h, &channels, 0);
+                TextureData t = TextureDataFromFile(mDir + "/" + mFaces[i]);
                 //Get color mode.
                 GLenum color_mode = GL_RED;
-                switch (channels) {
+                switch (t.nrComponents) {
                 case 3:
                     color_mode = GL_RGB;
                     break;
@@ -61,13 +60,13 @@ namespace Firesteel {
                     break;
                 }
                 //Bind data.
-                if (data)
+                if (t.data)
                     glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i,
-                        0, color_mode, w, h, 0, color_mode, GL_UNSIGNED_BYTE, data);
+                        0, color_mode, t.width, t.height, 0, color_mode, GL_UNSIGNED_BYTE, t.data);
                 else
                     LOG_ERRR(std::string("Failed to load texture at \"") + (const char*)mFaces[i] + "\".");
                 //Free data.
-                stbi_image_free(data);
+                free(t.data);
             }
             //Communicate texture properties to OpenGL.
             glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR);

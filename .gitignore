@@ -15,7 +15,9 @@ engine/external/*
 !build/OpenAL32.dll
 !build/OpenAL32d.dll
 !build/News.md
-!build/imgui.ini
+build/imgui.ini
+!build/editor.imgui.ini
+!build/viewer.imgui.ini
 build/engine/*
 !build/engine/
 build/engine/bullet3/*

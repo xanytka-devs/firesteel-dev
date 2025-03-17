@@ -1,8 +1,10 @@
 #ifndef FS_WINDOW_H
 #define FS_WINDOW_H
 #include "common.hpp"
+#include <filesystem>
 #include "input/keyboard.hpp"
 #include "input/mouse.hpp"
+#include "utils/stbi_global.hpp"
 
 namespace Firesteel {
 

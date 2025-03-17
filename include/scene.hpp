@@ -14,7 +14,7 @@ public:
 
 	}
 	Scene(const char* tPath, Cubemap* tSky) {
-		mLoaded = loadFromSrc(tPath, tSky);
+		mLoaded = load(tPath, tSky);
 	}
 
 	void save(const char* tPath, Cubemap* tSky) const {
@@ -43,19 +43,8 @@ public:
 		std::ofstream o(tPath);
 		o << std::setw(4) << txt << std::endl;
 	}
-	EditorObject& operator [](int tID) {
-		return *entities[tID];
-	}
 
-	void draw() {
-
-	}
-
-	Atmosphere atmosphere;	
-	std::vector<std::shared_ptr<EditorObject>> entities;
-private:
-	bool mLoaded = false;
-	bool loadFromSrc(const char* tPath, Cubemap* tSky) {
+	bool load(const char* tPath, Cubemap* tSky) {
 		if(!std::filesystem::exists(tPath)) return false;
 		std::ifstream ifs(tPath);
 		nlohmann::json txt = nlohmann::json::parse(ifs);
@@ -72,7 +61,7 @@ private:
 		atmosphere.fog.start = pts.x;
 		atmosphere.fog.end = pts.y;
 
-		if(!txt["atm"]["cubemap"].is_null() && std::filesystem::exists(txt["atm"]["cubemap"]["cfg"])) {
+		if(!txt["atm"]["cubemap"].is_null()) {
 			tSky->remove();
 			tSky->load(txt["atm"]["cubemap"]["cfg"]);
 			tSky->initialize(txt["atm"]["cubemap"]["size"]);
@@ -80,6 +69,18 @@ private:
 
 		return true;
 	}
+	EditorObject& operator [](int tID) {
+		return *entities[tID];
+	}
+
+	void draw() {
+
+	}
+
+	Atmosphere atmosphere;	
+	std::vector<std::shared_ptr<EditorObject>> entities;
+private:
+	bool mLoaded = false;
 };
 
 #endif // !FSE_SCENE

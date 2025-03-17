@@ -46,6 +46,7 @@ if(FS_BUILD_SCENE_VIEWER)
 		"include/material.hpp"
 		"include/scene.hpp"
 		"include/utils.hpp"
+		"include/imgui/base.hpp"
 		"scene_viewer.cpp"
 	)
 	target_link_libraries(${SCENE_VIEWER_PROJECT_NAME}

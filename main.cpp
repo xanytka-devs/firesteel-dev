@@ -20,9 +20,6 @@ using namespace Firesteel;
 #include <../external/imgui/imgui-knobs.h>
 #include <../external/imgui/ImGuizmo.h>
 #include <glm/gtc/type_ptr.hpp>
-#define __STDC_LIB_EXT1__
-#define STB_IMAGE_WRITE_IMPLEMENTATION
-#include "engine/include/utils/stb_image_write.hpp"
 
 #include "include/light.hpp"
 #include "include/editor_object.hpp"
@@ -43,7 +40,7 @@ bool wireframeEnabled = false;
 bool drawNativeUI = true;
 bool drawImGUI = true;
 
-void processInput(Window* tWin, GLFWwindow* tPtr, float tDeltaTime, Joystick* joystick);
+void processInput(Window* tWin, float tDeltaTime, Joystick* joystick);
 Text t;
 static void displayLoadingMsg(std::string t_Msg, Shader* t_Shader, Window* t_Window);
 
@@ -80,7 +77,7 @@ std::string consoleInput;
 std::string consoleLog;
 bool backupLogs = false;
 bool didSaveCurPrj = true;
-float mouseSensativity = 0.1f;
+float mouseSenstivity = 0.1f;
 bool mouseInvertY = false;
 
 bool displayGizmos = true;
@@ -1051,7 +1048,7 @@ class EditorApp : public App {
             ImGui::DragInt("Lighting", &lightingMode, 1, 0, 3);
             ImGui::Separator();
             ImGui::Text("Controls");
-            ImGui::SliderFloat("Mouse Sensativity", &mouseSensativity, 0.01f, 3.00f);
+            ImGui::SliderFloat("Mouse Sensativity", &mouseSenstivity, 0.01f, 3.00f);
             ImGui::Checkbox("Invert mouse Y", &mouseInvertY);
             ImGui::End();
         }
@@ -1214,6 +1211,8 @@ class EditorApp : public App {
         LOG_INFO("Initializing ImGui");
         displayLoadingMsg("Initializing ImGui", &materialReg[0].shader, &window);
         FSImGui::Initialize(&window);
+        ImGui::LoadIniSettingsFromDisk("editor.imgui.ini");
+        std::filesystem::remove("imgui.ini");
         reloadFonts(true);
         LOG_INFO("ImGui ready");
         newsTxtLoaded = StrFromFile("News.md");
@@ -1339,7 +1338,7 @@ class EditorApp : public App {
             reloadFonts();
         }
         /* Input processing */ {
-            processInput(&window, window.ptr(), deltaTime, &joystick);
+            processInput(&window, deltaTime, &joystick);
             audio.setPostion(camera.pos);
             ppFBO.bind();
             window.clearBuffers();
@@ -1414,6 +1413,7 @@ class EditorApp : public App {
         // ImGui
         loadedW = window.getWidth();
         loadedH = window.getHeight();
+        ImGui::SaveIniSettingsToDisk("editor.imgui.ini");
         FSImGui::Shutdown();
         if(themeningEnabled) imgConf.saveTheme(".theme.json");
         LOG_INFO("ImGui terminated");
@@ -1440,7 +1440,7 @@ static void saveConfig() {
     txt["window"]["width"] = loadedW;
     txt["window"]["height"] = loadedH;
 
-    txt["controls"]["mouseSensativity"] = mouseSensativity;
+    txt["controls"]["mouseSensativity"] = mouseSenstivity;
     txt["controls"]["mouseInvertY"] = mouseInvertY;
 
     txt["dev"]["consoleDevMode"] = consoleDevMode;
@@ -1477,7 +1477,7 @@ static void loadConfig() {
         loadedH = txt["window"]["height"];
     }
     if(!txt["controls"].is_null()) {
-        mouseSensativity = txt["controls"]["mouseSensativity"];
+        mouseSenstivity = txt["controls"]["mouseSensativity"];
         mouseInvertY = txt["controls"]["mouseInvertY"];
     }
     if(!txt["dev"].is_null()) {
@@ -1517,7 +1517,7 @@ float speed_mult = 2.f;
 bool pressedScrBtn = false;
 bool pressedImgToggleBtn = false;
 bool pressedNativeToggleBtn = false;
-void processInput(Window* tWin, GLFWwindow* tPtr, float tDeltaTime, Joystick* joystick) {
+void processInput(Window* tWin, float tDeltaTime, Joystick* joystick) {
     if(Keyboard::keyDown(KeyCode::ESCAPE))
         tWin->close();
 
@@ -1574,8 +1574,8 @@ void processInput(Window* tWin, GLFWwindow* tPtr, float tDeltaTime, Joystick* jo
     if(joystick->isPresent()) dx = joystick->getAxis(JoystickControls::AXIS_LEFT_STICK_X), dy = -joystick->getAxis(JoystickControls::AXIS_LEFT_STICK_Y);
     if(dx != 0 || dy != 0) {
         if(mouseInvertY) dy*=-1;
-        camera.rot.y += dy*mouseSensativity;
-        camera.rot.z += dx*mouseSensativity;
+        camera.rot.y += dy*mouseSenstivity;
+        camera.rot.z += dx*mouseSenstivity;
         if(camera.rot.y > 89.0f)
             camera.rot.y = 89.0f;
         if(camera.rot.y < -89.0f)
