@@ -112,6 +112,7 @@ float temperatureMix = 1;
 
 size_t heldEntityID = 0;
 EditorObject* heldEntity;
+EditorObject billboard;
 ImGuizmo::MODE currentGizmoMode = ImGuizmo::WORLD;
 ImGuizmo::OPERATION currentGizmoOperation = ImGuizmo::TRANSLATE;
 
@@ -120,6 +121,15 @@ const char* acts[4] = {
     u8"Обновлена модель объекта 'Тест'",
     u8"Объект 'Тест' переименов в 'Хрю'",
     u8"Обьект 'Хрю' был удалён"
+};
+const size_t randomLoggingPhrasesSIZE = 6;
+const char* randomLoggingPhrases[randomLoggingPhrasesSIZE] = {
+    "1.0 when?",
+    "I could've given you a hint but I won't",
+    "Yeah, I know that punction is absolutely random. But I don't really care",
+    "Pineapple pizza",
+    "Error: No error found",
+    "Only the real ones remember v.0.1..."
 };
 
 bool needToScreenShot = false;
@@ -363,9 +373,11 @@ class EditorApp : public App {
                     fd.filter_id = 2;
                     std::string res = fd.open();
                     if (res != "") {
-                        scene = Scene(res.c_str(), &sky);
+                        LOG_INFO("Opening scene at: \"" + res + "\".");
+                        std::filesystem::current_path(std::filesystem::current_path().parent_path());
+                        scene.load(res.c_str(), &sky);
                         std::filesystem::current_path(lastPath);
-                        LOG_INFO("Opened scene at \"" + res + "\".");
+                        LOG_INFO("Scene succesfully loaded.");
                         didSaveCurPrj = true;
                     }
                 }
@@ -1144,6 +1156,8 @@ class EditorApp : public App {
     }
 
     virtual void onInitialize() override {
+        srand(static_cast<int>(glfwGetTime()));
+        LOG_C(randomLoggingPhrases[rand() % (randomLoggingPhrasesSIZE)]);
         window.setIconFromMemory(emb::img_fse_logo, sizeof(emb::img_fse_logo)/ sizeof(*emb::img_fse_logo));
         window.setClearColor(glm::vec3(0.0055f, 0.002f, 0.f));
         // Getting ready text renderer.
@@ -1175,29 +1189,14 @@ class EditorApp : public App {
         materialReg.push_back(Material().load("res/mats/skybox.material.json"));
         materialReg.push_back(Material().load("res/mats/lit_3d.material.json"));
         reloadShaders();
-        // Load de scene.
-        scene = Scene("res\\demo.scene.json", &sky);
-        //sky.load("res/FortPoint", "posz.jpg", "negz.jpg", "posy.jpg", "negy.jpg", "posx.jpg", "negx.jpg");
-        //sky.initialize(100);
-        // Load da models.
-        displayLoadingMsg("Loading backpack", &materialReg[0].shader, &window);
-        EditorObject obj = EditorObject{ "Backpack", Entity("res\\backpack\\backpack.obj", glm::vec3(0.f, 0.f, -1.f), glm::vec3(0), glm::vec3(0.5)), materialReg[4] };
-        scene.entities.push_back(std::make_shared<EditorObject>(obj));
-
-        displayLoadingMsg("Loading quad", &materialReg[0].shader, &window);
-        obj = EditorObject{ "Quad", Entity("res\\primitives\\quad.obj"), materialReg[1] };
-        scene.entities.push_back(std::make_shared<EditorObject>(obj));
-
-        displayLoadingMsg("Loading box", &materialReg[0].shader, &window);
-        obj = EditorObject{ "Box", Entity("res\\box\\box.obj", glm::vec3(-2.f, 0.f, 1.f)), materialReg[4] };
-        scene.entities.push_back(std::make_shared<EditorObject>(obj));
-
-        displayLoadingMsg("Loading phone booth", &materialReg[0].shader, &window);
-        obj = EditorObject{ "Phone booth", Entity("res\\phone-booth\\X.obj", glm::vec3(10.f, 0.f, 10.f), glm::vec3(0), glm::vec3(0.5f)), materialReg[4] };
-        scene.entities.push_back(std::make_shared<EditorObject>(obj));
+        displayLoadingMsg("Loading billboard system", &materialReg[0].shader, &window);
+        billboard = EditorObject{ "Quad", Entity("res\\primitives\\quad.obj"), materialReg[1] };
 
         billTex = Texture{ TextureFromFile("res/yeah.png"), "texture_diffuse", "res/yeah.png" };
         pointLightBillTex = Texture{ TextureFromFile("res/billboards/point_light.png"), "texture_diffuse", "res/billboards/point_light.png" };
+        // Load de scene.
+        displayLoadingMsg("Loading scene", &materialReg[0].shader, &window);
+        scene = Scene("res\\demo.scene.json", &sky);
         // Framebuffer.
         displayLoadingMsg("Creating FBO", &materialReg[0].shader, &window);
         ppFBO = Framebuffer(window.getSize(), 2);
@@ -1309,8 +1308,8 @@ class EditorApp : public App {
                     //.endNamespace()
                     .endNamespace();
             }
-            luaL_dofile(L, "res/scripts/oninit.lua");
-            luaL_dofile(L, "res/scripts/components/rotator.lua");
+            if(std::filesystem::exists("res/scripts/oninit.lua")) luaL_dofile(L, "res/scripts/oninit.lua");
+            if(std::filesystem::exists("res/scripts/components/rotator.lua")) luaL_dofile(L, "res/scripts/components/rotator.lua");
             getGlobal(L, "onstart")();
             luaInit = true;
         } else LOG_WARN("Couldn't initialize LuaBridge (probably the library DLL is missing).")
@@ -1352,61 +1351,45 @@ class EditorApp : public App {
             sLight.direction = camera.Forward;
             for (size_t i = 0; i < materialReg.size(); i++) {
                 materialReg[i].enable();
-                materialReg[i].setMat4("projection", projection);
-                materialReg[i].setMat4("view", view);
-                materialReg[i].setVec3("viewPos", camera.pos);
                 materialReg[i].setInt("drawMode", drawMode);
-                materialReg[i].setInt("time", static_cast<int>(glfwGetTime()));
                 if(materialReg[i].type == 0) {
-                    scene.atmosphere.setParams(&materialReg[i].shader);
-                    materialReg[i].setInt("lightingType", lightingMode);
-                    materialReg[i].setInt("skybox", 11);
+                    //materialReg[i].setInt("lightingType", lightingMode);
                     materialReg[i].setInt("numPointLights", 1);
                     pLight.setParams(&materialReg[i].shader, 0);
                     materialReg[i].setInt("numSpotLights", sLightEnabled ? 1 : 0);
                     sLight.setParams(&materialReg[i].shader, 0);
                 }
             }
-            sky.bind();
             defaultShader.enable();
             defaultShader.setVec2("resolution", ppFBO.getSize());
         }
-        sky.draw(&materialReg[3].shader);
+        scene.draw(&camera, &materialReg, &sky);
         /* Draw billboard */ {
-            scene[1].entity.transform.Position = glm::vec3(0.f, 5.f, 0.f);
+            billboard.entity.transform.Position = glm::vec3(0.f, 5.f, 0.f);
             billTex.bind();
             materialReg[1].enable();
             materialReg[1].setVec3("color", glm::vec3(1));
             materialReg[1].setVec2("size", glm::vec2(1.f));
-            scene[1].draw();
+            billboard.draw();
             Texture::unbind();
         }
         /* Draw pseudo-gizmos */ {
             if (displayGizmos) {
-                scene[1].entity.transform.Position = pLight.position;
+                billboard.entity.transform.Position = pLight.position;
                 glDepthFunc(GL_ALWAYS);
                 pointLightBillTex.bind();
                 materialReg[1].setVec3("color", pLight.diffuse);
                 materialReg[1].setVec2("size", glm::vec2(0.25f));
                 materialReg[1].setMat4("model", model);
-                scene[1].draw();
+                billboard.draw();
                 Texture::unbind();
                 glDepthFunc(GL_LESS);
             }
         }
-        /* Render backpack */ {
-            scene[0].draw();
-        }
-        /* Render box */ {
-            scene[2].draw();
-        }
-        /* Render phone booth */ {
-            scene[3].draw();
-        }
         fboProcessing();
         if(drawNativeUI) drawNativeGUI();
         if(drawImGUI) drawImGui(view, projection);
-        if(glfwGetKey(window.ptr(), GLFW_KEY_F5) == GLFW_PRESS) reloadShaders();
+        if(Keyboard::keyDown(KeyCode::F5)) reloadShaders();
     }
     virtual void onShutdown() override {
         if(luaInit) getGlobal(L, "onend")();
@@ -1423,9 +1406,7 @@ class EditorApp : public App {
         FSOAL::deinitialize();
         LOG_INFO("OpenAL terminated.");
         // Materials & objects
-        for (size_t i = 0; i < scene.entities.size(); i++)
-            scene[static_cast<int>(i)].remove();
-        scene.entities.clear();
+        scene.remove();
         for (size_t i = 0; i < materialReg.size(); i++)
             materialReg[static_cast<int>(i)].remove();
         materialReg.clear();
@@ -1507,6 +1488,7 @@ int main() {
     EditorApp app{};
     loadConfig();
     int r = app.start(("Firesteel " + GLOBAL_VER).c_str(), loadedW, loadedH, WS_NORMAL);
+    FSOAL::deinitialize();
     LOG_INFO("Shutting down Firesteel App.");
     if(backupLogs) Log::destroyFileLogger();
     saveConfig();

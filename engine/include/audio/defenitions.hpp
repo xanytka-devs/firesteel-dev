@@ -36,6 +36,7 @@ namespace FSOAL {
         alcMakeContextCurrent(ALCONTEXT);
         alcDestroyContext(ALCONTEXT);
         alcCloseDevice(ALCDEVICE);
+        globalInitState = false;
     }
 
 }

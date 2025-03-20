@@ -103,8 +103,9 @@ namespace Firesteel {
             }
             model = Model(tPath);
 
+            LOG_INFO("Loading model at: \"" + tPath + "\"");
             processNode(scene->mRootNode, scene);
-            LOG_INFO("Loaded model at \"" + tPath + "\"");
+            LOG_INFO("Model has been successfully loaded");
             mHasMeshes = true;
         }
 
@@ -181,6 +182,7 @@ namespace Firesteel {
             //Does the model even have textures?
             if(material->GetTextureCount(aiTextureType_DIFFUSE) == 0
                 && material->GetTextureCount(aiTextureType_SPECULAR) == 0) {
+                LOG_INFO("No general textures found. Using bound color data.");
                 //Diffuse and specular color.
                 aiColor4D def(1.0f);
                 aiColor4D spec(1.0f);
@@ -222,6 +224,8 @@ namespace Firesteel {
             texs = loadMaterialTextures(material, aiTextureType_OPACITY, "opacity");
             textures.insert(textures.end(), texs.begin(), texs.end());
             texs.clear();
+
+            if(textures.size()==0) LOG_WARN("Model somehow didn't load any textures");
 
             return Mesh(vertices, indices, textures);
         }

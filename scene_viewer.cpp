@@ -20,7 +20,6 @@ class SceneViewerApp : public App {
 	Cubemap sky;
 	Scene scene;
 	Camera camera{ glm::vec3(0.0f, 0.0f, 3.0f), glm::vec3(0, 0, -90) };
-	EditorObject dobj;
 
 	float speed_mult = 2.f, mouseSenstivity = 0.5f;
 	bool mouseInvertY = false;
@@ -94,6 +93,7 @@ class SceneViewerApp : public App {
 
 	virtual void onInitialize() override {
 		// Initialization point.
+		lastPath = std::filesystem::current_path();
 		window.setClearColor(glm::vec3(0));
 		defaultShader = Shader(emb::shd_vrt_default, emb::shd_frg_default, false, "");
 		// Load all default materials.
@@ -109,9 +109,8 @@ class SceneViewerApp : public App {
 			materialReg[i].reload();
 			if (!materialReg[i].isLoaded()) materialReg[i].shader = defaultShader;
 		}
-		// Scene & default obj.
-		dobj = EditorObject{ "Box", Entity("res\\box\\box.obj", glm::vec3(-2.f, 0.f, 1.f)), materialReg[4] };
-		scene.load("res\\demo.scene.json", &sky);
+		// Scene.
+		//scene.load("res\\demo.scene.json", &sky);
 		camera.farPlane = 1000;
 		// ImGui setup.
 		IMGUI_CHECKVERSION();
@@ -128,7 +127,6 @@ class SceneViewerApp : public App {
 		ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 3.0f);
 		ImGui::LoadIniSettingsFromDisk("viewer.imgui.ini");
 		std::filesystem::remove("imgui.ini");
-		lastPath = std::filesystem::current_path();
 	}
 	virtual void onUpdate() override {
 		// Handle window size change.
@@ -140,47 +138,34 @@ class SceneViewerApp : public App {
 		glm::mat4 projection = camera.getProjection(1);
 		glm::mat4 view = camera.getView();
 		glm::mat4 model = glm::mat4(1.0f);
-		/* Prerender processing */ {
-			for (size_t i = 0; i < materialReg.size(); i++) {
-				materialReg[i].enable();
-				materialReg[i].setMat4("projection", projection);
-				materialReg[i].setMat4("view", view);
-				materialReg[i].setVec3("viewPos", camera.pos);
-				materialReg[i].setInt("drawMode", 0);
-				materialReg[i].setInt("time", static_cast<int>(glfwGetTime()));
-				if (materialReg[i].type == 0) {
-					scene.atmosphere.setParams(&materialReg[i].shader);
-					materialReg[i].setInt("lightingType", 3);
-					materialReg[i].setInt("skybox", 11);
-					//materialReg[i].setInt("numPointLights", 0);
-					//pLight.setParams(&materialReg[i].shader, 0);
-					//materialReg[i].setInt("numSpotLights", 0);
-					//sLight.setParams(&materialReg[i].shader, 0);
-				}
-			}
-			sky.bind();
-			defaultShader.enable();
-			defaultShader.setVec2("resolution", window.getSize());
-		}
-		sky.draw(&materialReg[3].shader);
-		// Draw default obj.
-		dobj.draw();
+		defaultShader.enable();
+		defaultShader.setVec2("resolution", window.getSize());
+		scene.draw(&camera, &materialReg, &sky);
 		// Start the Dear ImGui frame
 		FSImGui::NewFrame();
 		// General window.
 		ImGui::Begin("Scene viewer");
-		ImGui::Text("Yes, hello");
+		ImGui::Text(("FPS " + std::to_string(fps)).c_str());
 
 		ImGui::Text("Scene");
+		if(scene.isLoaded()) {
+			ImGui::BeginDisabled();
+			std::string cPath = scene.getPath();
+			ImGui::InputText("##scene_curpath", &cPath);
+			ImGui::EndDisabled();
+		} else ImGui::Text("No scene");
+		ImGui::SameLine();
 		if(ImGui::Button("...")) {
 			FileDialog fd;
 			fd.filter = "All\0*.*\0Scene (*.scene.json)\0*.scene.json\0";
 			fd.filter_id = 2;
 			std::string res = fd.open();
 			if (res != "") {
+				LOG_INFO("Opening scene at: \"" + res + "\".");
+				std::filesystem::current_path(std::filesystem::current_path().parent_path());
 				scene.load(res.c_str(), &sky);
 				std::filesystem::current_path(lastPath);
-				LOG_INFO("Opened scene at \"" + res + "\".");
+				LOG_INFO("Scene succesfully loaded.");
 			}
 		}
 
@@ -199,10 +184,8 @@ class SceneViewerApp : public App {
 		ImGui_ImplGlfw_Shutdown();
 		ImGui::DestroyContext();
 		LOG_INFO("ImGui terminated");
-		// Materials & objects
-		for (size_t i = 0; i < scene.entities.size(); i++)
-			scene[static_cast<int>(i)].remove();
-		scene.entities.clear();
+		// Materials & objects.
+		scene.remove();
 		for (size_t i = 0; i < materialReg.size(); i++)
 			materialReg[static_cast<int>(i)].remove();
 		materialReg.clear();
@@ -211,7 +194,7 @@ class SceneViewerApp : public App {
 
 int main() {
 	SceneViewerApp app{};
-	int r = app.start(("Firesteel " + GLOBAL_VER).c_str(), 800, 600, WS_NORMAL);
+	int r = app.start(("Scene Viewer | Firesteel " + GLOBAL_VER).c_str(), 800, 600, WS_NORMAL);
 	LOG_INFO("Shutting down Firesteel App.");
 	return r;
 }

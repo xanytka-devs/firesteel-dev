@@ -179,11 +179,12 @@ namespace Firesteel {
 
         std::string getDirectory() const { return mDir; }
         std::string getCfgFile() const { return mCfgFile; }
-        unsigned int getSize() const { return mSize; }
+        float getSize() const { return mSize; }
 
         ~Cubemap() { remove(); }
     private:
-        unsigned int mVAO, mVBO, mID, mSize;
+        unsigned int mVAO, mVBO, mID;
+        float mSize;
         std::string mDir, mCfgFile;
         std::vector<const char*> mFaces;
         bool mInitialized;

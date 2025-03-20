@@ -34,9 +34,7 @@ unsigned int TextureFromFile(const std::string& tPath, bool* tIsMonochromeOut = 
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    }
-    else
-        LOG_ERRR("Texture failed to load at path: " + tPath);
+    } else LOG_ERRR("Couldn't load texture at: \"" + tPath + "\"");
     stbi_image_free(data);
     return textureID;
 }
