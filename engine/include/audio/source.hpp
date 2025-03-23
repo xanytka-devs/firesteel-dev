@@ -81,20 +81,24 @@ namespace FSOAL {
 			return true;
 		}
 
-		void play() const {
-			if(!globalInitState) return;
+		void play() {
+			if(!globalInitState || !mInited) return;
+			mPlaying = true;
 			alSourcePlay(mSource);
 		}
-		void stop() const {
-			if(!globalInitState) return;
+		void stop() {
+			if(!globalInitState || !mInited) return;
+			mPlaying = false;
 			alSourceStop(mSource);
 		}
-		void pause() const {
-			if(!globalInitState) return;
+		void pause() {
+			if(!globalInitState || !mInited) return;
+			mPlaying = !mPlaying;
 			alSourcePause(mSource);
 		}
-		void resume() const {
-			if(!globalInitState) return;
+		void resume() {
+			if(!globalInitState || !mInited) return;
+			mPlaying = true;
 			play();
 		}
 
@@ -102,7 +106,37 @@ namespace FSOAL {
 		glm::vec3 getVelocity() const { return mVelocity; }
 		float getGain() const { return mGain; }
 		float getPitch() const { return mPitch; }
+		float getOffsetInSamples() const {
+			float offset = 0;
+			alGetSourcef(mSource, AL_SAMPLE_OFFSET, &offset);
+			return offset;
+		}
+		float getOffset() const {
+			return getOffsetInSamples() / mSampleRate;
+		}
+		float getDurationInSamples() const {
+			if(!globalInitState || !mInited) return 0;
+			ALint sizeInBytes;
+			ALint channels;
+			ALint bits;
+
+			alGetBufferi(mBuffer, AL_SIZE, &sizeInBytes);
+			alGetBufferi(mBuffer, AL_CHANNELS, &channels);
+			alGetBufferi(mBuffer, AL_BITS, &bits);
+
+			return sizeInBytes * 8.f / (channels * bits);
+		}
+		float getDuration() const {
+			if(!globalInitState || !mInited) return 0;
+
+			ALint frequency;
+			alGetBufferi(mBuffer, AL_FREQUENCY, &frequency);
+
+			return (float)getDurationInSamples() / (float)frequency;
+		}
 		bool isLooping() const { return mLooping; }
+		bool isPlaying() const { return mPlaying; }
+		bool isInitialized() const { return mInited; }
 
 		Source* setPostion(glm::vec3 tPos) {
 			if(!globalInitState) return this;
@@ -156,6 +190,11 @@ namespace FSOAL {
 			alSourcei(mSource, AL_LOOPING, mLooping ? AL_TRUE : AL_FALSE);
 			return this;
 		}
+		Source* setOffset(float tSec) {
+			if(!globalInitState) return this;
+			alSourcef(mSource, AL_SEC_OFFSET, tSec);
+			return this;
+		}
 
 	private:
 		/* Source info */
@@ -163,7 +202,7 @@ namespace FSOAL {
 		glm::vec3 mVelocity = glm::vec3(0);
 		float mGain;
 		float mPitch;
-		bool mLooping, mInited = false;
+		bool mLooping, mInited = false, mPlaying = false;
 
 		/* AL data */
 		ALuint mSource = 0;
@@ -273,6 +312,10 @@ namespace FSOAL {
 			alBufferData(mBuffer, mFormat, soundData.data(), static_cast<ALsizei>(soundData.size() * sizeof(int16_t)), mSampleRate);
 			soundData.clear(); // erase the sound in RAM
 			return alGetError() == AL_NO_ERROR;
+		}
+		float samplesToSeconds(size_t samples, int sampleRate) {
+			float seconds = samples / (float)sampleRate;
+			return seconds;
 		}
 	};
 

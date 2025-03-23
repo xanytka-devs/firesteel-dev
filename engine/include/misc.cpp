@@ -87,11 +87,14 @@ void Log::destroyFileLogger() {
 void Log::log(const std::string& tMsg, const int tMod, const bool tAddTimestamp) {
 	logToFile(tMsg.c_str(), tAddTimestamp); // File logging.
 #ifndef NDEBUG
+	ShowWindow(GetConsoleWindow(), SW_RESTORE); // Show cmd window.
 	SetConsoleTitleA("Firesteel Debug Output"); // Set cmd title.
 	HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE);// Get cmd handle.
 	SetConsoleTextAttribute(hConsole, tMod); // Set cmd text color.
 	printf(tMsg.c_str()); // Print msg.
-#endif // NDEBUG
+#else
+	ShowWindow(GetConsoleWindow(), SW_HIDE);
+#endif // !NDEBUG
 }
 void Log::clear() {
 	system("cls");

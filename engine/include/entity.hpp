@@ -93,6 +93,10 @@ namespace Firesteel {
 
         /// Loads a model with ASSIMP.
         void loadFromFile(const std::string& tPath) {
+            if(!std::filesystem::exists(tPath)) {
+                LOG_INFO("Model at: \"" + tPath + "\" doesn't exist");
+                return;
+            }
             // Read file via ASSIMP.
             Assimp::Importer importer;
             const aiScene* scene = importer.ReadFile(tPath, aiProcess_Triangulate | aiProcess_FlipUVs | aiProcess_CalcTangentSpace);

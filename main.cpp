@@ -17,8 +17,9 @@ extern "C" {
 using namespace Firesteel;
 #include <stdio.h>
 #include <time.h>
-#include <../external/imgui/imgui-knobs.h>
-#include <../external/imgui/ImGuizmo.h>
+#include <../external/imgui-knobs.h>
+#include <../external/ImGuizmo.h>
+//#include <../external/bullet3/src/btBulletDynamicsCommon.h>
 #include <glm/gtc/type_ptr.hpp>
 
 #include "include/light.hpp"
@@ -1155,18 +1156,26 @@ class EditorApp : public App {
         }
     }
 
+    //btDefaultCollisionConfiguration* collisionConfiguration = nullptr;
+    //btCollisionDispatcher* dispatcher = nullptr;
+    //btBroadphaseInterface* broadphase = nullptr;
+    //btSequentialImpulseConstraintSolver* solver = nullptr;
+    //btDiscreteDynamicsWorld* dynamicsWorld = nullptr;
+    //std::vector<btCollisionShape*> collisionShapes;
+
     virtual void onInitialize() override {
         srand(static_cast<int>(glfwGetTime()));
         LOG_C(randomLoggingPhrases[rand() % (randomLoggingPhrasesSIZE)]);
+
         window.setIconFromMemory(emb::img_fse_logo, sizeof(emb::img_fse_logo)/ sizeof(*emb::img_fse_logo));
         window.setClearColor(glm::vec3(0.0055f, 0.002f, 0.f));
+
         // Getting ready text renderer.
         defaultShader = Shader(emb::shd_vrt_default, emb::shd_frg_default, false, "");
         materialReg.push_back(Material().load("res/mats/text.material.json"));
         TextRenderer::initialize();
         t.loadFont("res/fonts/vgasysr.ttf", 16);
-        // OpenGL setup.
-        displayLoadingMsg("Initializing OpenGL", &materialReg[0].shader, &window);
+
         // OpenAL setup.
         displayLoadingMsg("Initializing OpenAL", &materialReg[0].shader, &window);
 #ifndef NDEBUG
@@ -1180,6 +1189,7 @@ class EditorApp : public App {
             LOG_INFO(std::string("	Device: ") + alcGetString(NULL, ALC_DEFAULT_DEVICE_SPECIFIER));
         }
         audio.init("res/audio/elevator-music.mp3", 0.2f, true)->play();
+
         // Shaders.
         displayLoadingMsg("Compiling shaders", &materialReg[0].shader, &window);
         materialTypes.push_back("Lit");
@@ -1192,8 +1202,8 @@ class EditorApp : public App {
         displayLoadingMsg("Loading billboard system", &materialReg[0].shader, &window);
         billboard = EditorObject{ "Quad", Entity("res\\primitives\\quad.obj"), materialReg[1] };
 
-        billTex = Texture{ TextureFromFile("res/yeah.png"), "texture_diffuse", "res/yeah.png" };
         pointLightBillTex = Texture{ TextureFromFile("res/billboards/point_light.png"), "texture_diffuse", "res/billboards/point_light.png" };
+
         // Load de scene.
         displayLoadingMsg("Loading scene", &materialReg[0].shader, &window);
         scene = Scene("res\\demo.scene.json", &sky);
@@ -1206,6 +1216,7 @@ class EditorApp : public App {
         if(!imguiFBO.isComplete()) {LOG_ERRR("ImGui Scene FBO isn't complete"); drawImGUI=false;}
         camera.farPlane = 1000;
         sceneWinSize = window.getSize();
+
         // ImGUI setup.
         LOG_INFO("Initializing ImGui");
         displayLoadingMsg("Initializing ImGui", &materialReg[0].shader, &window);
@@ -1215,6 +1226,7 @@ class EditorApp : public App {
         reloadFonts(true);
         LOG_INFO("ImGui ready");
         newsTxtLoaded = StrFromFile("News.md");
+
         // LuaBridge.
         displayLoadingMsg("Initializing Lua", &materialReg[0].shader, &window);
         if(std::filesystem::exists("lua54.lib")) {
@@ -1312,19 +1324,53 @@ class EditorApp : public App {
             if(std::filesystem::exists("res/scripts/components/rotator.lua")) luaL_dofile(L, "res/scripts/components/rotator.lua");
             getGlobal(L, "onstart")();
             luaInit = true;
-        } else LOG_WARN("Couldn't initialize LuaBridge (probably the library DLL is missing).")
+        } else LOG_WARN("Couldn't initialize LuaBridge (probably the library DLL is missing).");
+
+        // Bullet3.
+        LOG_INFO("Initializing Bullet3");
+        // Initialize Bullet. This strictly follows http://bulletphysics.org/mediawiki-1.5.8/index.php/Hello_World, 
+        // even though we won't use most of this stuff.    
+        //// Build the broadphase
+        //broadphase = new btDbvtBroadphase();
+        //// Set up the collision configuration and dispatcher
+        //collisionConfiguration = new btDefaultCollisionConfiguration();
+        //dispatcher = new btCollisionDispatcher(collisionConfiguration);
+        //// The actual physics solver
+        //solver = new btSequentialImpulseConstraintSolver;
+        //// The world.
+        //dynamicsWorld = new btDiscreteDynamicsWorld(dispatcher, broadphase, solver, collisionConfiguration);
+        //dynamicsWorld->setGravity(btVector3(0, -9.81f, 0));
+        //// The box.
+        //btCollisionShape* boxCollisionShape = new btBoxShape(btVector3(1.0f, 1.0f, 1.0f));
+        //btDefaultMotionState* motionstate = new btDefaultMotionState(btTransform(
+        //    btQuaternion(orientations[i].x, orientations[i].y, orientations[i].z, orientations[i].w),
+        //    btVector3(positions[i].x, positions[i].y, positions[i].z)
+        //));
+        //
+        //btRigidBody::btRigidBodyConstructionInfo rigidBodyCI(
+        //    0,                  // mass, in kg. 0 -> Static object, will never move.
+        //    motionstate,
+        //    boxCollisionShape,  // collision shape of body
+        //    btVector3(0, 0, 0)    // local inertia
+        //);
+        //btRigidBody* rigidBody = new btRigidBody(rigidBodyCI);
+        //
+        //dynamicsWorld->addRigidBody(rigidBody);
+
         // OpenAL.
         phoneAmbience.init("res/audio/tone.wav", 0.1f, true)->setPostion(10.f, 0.f, 10.f)->play();
         audio.init("res/audio/harbour-port-ambience.mp3", 0.2f, true)->play();
         lastPath=std::filesystem::current_path();
-        window.setClearColor(glm::vec3(0));
-        window.setTitle((didSaveCurPrj?"":"*") + lastPath.u8string() + " | Firesteel " + GLOBAL_VER);
+        window.setTitle(lastPath.u8string() + " | Firesteel " + GLOBAL_VER);
         glfwRequestWindowAttention(window.ptr());
         joystick.update();
         joystick.printInfo();
         //glDisable(GL_FRAMEBUFFER_SRGB);
         window.setClearColor(glm::vec3(0));
     }
+
+    float fixedTimeStep = 1.f / 24.f;
+
     virtual void onUpdate() override {
         if(!drawImGUI) if(ppFBO.getSize() != window.getSize()) {
                 ppFBO.scale(window.getSize());
@@ -1339,6 +1385,18 @@ class EditorApp : public App {
         /* Input processing */ {
             processInput(&window, deltaTime, &joystick);
             audio.setPostion(camera.pos);
+
+            //dynamicsWorld->stepSimulation(fixedTimeStep, 10);
+            //for(int j = dynamicsWorld->getNumCollisionObjects() - 1; j >= 0; j--) {
+            //    btCollisionObject * obj = dynamicsWorld->getCollisionObjectArray()[j];
+            //    btRigidBody* body = btRigidBody::upcast(obj);
+            //    btTransform trans;
+            //    if(body && body->getMotionState()) body->getMotionState()->getWorldTransform(trans);
+            //    else trans = obj->getWorldTransform();
+            //    printf("world pos object %d = %f, %f, %f \n ", j, float(trans.getOrigin().getX()), float(
+            //        trans.getOrigin().getY()), float(trans.getOrigin().getZ()));
+            //}
+
             ppFBO.bind();
             window.clearBuffers();
             wireframeEnabled ? glPolygonMode(GL_FRONT_AND_BACK, GL_LINE) : glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
@@ -1364,20 +1422,12 @@ class EditorApp : public App {
             defaultShader.setVec2("resolution", ppFBO.getSize());
         }
         scene.draw(&camera, &materialReg, &sky);
-        /* Draw billboard */ {
-            billboard.entity.transform.Position = glm::vec3(0.f, 5.f, 0.f);
-            billTex.bind();
-            materialReg[1].enable();
-            materialReg[1].setVec3("color", glm::vec3(1));
-            materialReg[1].setVec2("size", glm::vec2(1.f));
-            billboard.draw();
-            Texture::unbind();
-        }
         /* Draw pseudo-gizmos */ {
             if (displayGizmos) {
                 billboard.entity.transform.Position = pLight.position;
                 glDepthFunc(GL_ALWAYS);
                 pointLightBillTex.bind();
+                materialReg[1].enable();
                 materialReg[1].setVec3("color", pLight.diffuse);
                 materialReg[1].setVec2("size", glm::vec2(0.25f));
                 materialReg[1].setMat4("model", model);
@@ -1393,6 +1443,29 @@ class EditorApp : public App {
     }
     virtual void onShutdown() override {
         if(luaInit) getGlobal(L, "onend")();
+        //// Bullet3
+        //// remove the rigidbodies from the dynamics world and delete them
+        //for (int i = dynamicsWorld->getNumCollisionObjects() - 1; i >= 0; i--) {
+        //    btCollisionObject * obj = dynamicsWorld->getCollisionObjectArray()[i];
+        //    btRigidBody * body = btRigidBody::upcast(obj);
+        //    if(body && body -> getMotionState())
+        //        delete body -> getMotionState();
+        //    dynamicsWorld -> removeCollisionObject(obj);
+        //    delete obj;
+        //}
+        //// delete collision shapes
+        //for (int j = 0; j < collisionShapes.size(); j++) {
+        //    btCollisionShape* shape = collisionShapes[j];
+        //    collisionShapes[j] = 0;
+        //    delete shape;
+        //}
+        //delete dynamicsWorld;
+        //delete solver;
+        //delete broadphase;
+        //delete dispatcher;
+        //delete collisionConfiguration;
+        //collisionShapes.clear();
+
         // ImGui
         loadedW = window.getWidth();
         loadedH = window.getHeight();
@@ -1400,11 +1473,13 @@ class EditorApp : public App {
         FSImGui::Shutdown();
         if(themeningEnabled) imgConf.saveTheme(".theme.json");
         LOG_INFO("ImGui terminated");
+
         // OpenAL.
         phoneAmbience.remove();
         audio.remove();
         FSOAL::deinitialize();
         LOG_INFO("OpenAL terminated.");
+
         // Materials & objects
         scene.remove();
         for (size_t i = 0; i < materialReg.size(); i++)

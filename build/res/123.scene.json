@@ -1,7 +1,7 @@
 {
     "atm": {
         "cubemap": {
-            "cfg": "res/FortPoint/skybox.cubemap",
+            "cfg": "res/Yokohama2/skybox.cubemap",
             "size": 100
         },
         "dLight": {
@@ -47,8 +47,8 @@
             "name": "Backpack",
             "pos": [
                 0.0,
-                0.0,
-                -1.0
+                3.0,
+                5.0
             ],
             "rot": [
                 0.0,
@@ -59,26 +59,6 @@
                 0.5,
                 0.5,
                 0.5
-            ]
-        },
-        {
-            "mat": 4,
-            "model": "res\\box\\box.obj",
-            "name": "Box",
-            "pos": [
-                -2.0,
-                0.0,
-                1.0
-            ],
-            "rot": [
-                0.0,
-                0.0,
-                0.0
-            ],
-            "size": [
-                1.0,
-                1.0,
-                1.0
             ]
         },
         {
