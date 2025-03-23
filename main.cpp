@@ -377,7 +377,6 @@ class EditorApp : public App {
                         LOG_INFO("Opening scene at: \"" + res + "\".");
                         std::filesystem::current_path(std::filesystem::current_path().parent_path());
                         scene.load(res.c_str(), &sky);
-                        std::filesystem::current_path(lastPath);
                         LOG_INFO("Scene succesfully loaded.");
                         didSaveCurPrj = true;
                     }
@@ -1164,19 +1163,19 @@ class EditorApp : public App {
     //std::vector<btCollisionShape*> collisionShapes;
 
     virtual void onInitialize() override {
+        // Say random phrase.
         srand(static_cast<int>(glfwGetTime()));
         LOG_C(randomLoggingPhrases[rand() % (randomLoggingPhrasesSIZE)]);
 
+        // Getting ready to display loading info.
         window.setIconFromMemory(emb::img_fse_logo, sizeof(emb::img_fse_logo)/ sizeof(*emb::img_fse_logo));
-        window.setClearColor(glm::vec3(0.0055f, 0.002f, 0.f));
-
-        // Getting ready text renderer.
+        window.setClearColor(glm::vec3(0.0055f, 0.002f, 0.f));      
         defaultShader = Shader(emb::shd_vrt_default, emb::shd_frg_default, false, "");
         materialReg.push_back(Material().load("res/mats/text.material.json"));
         TextRenderer::initialize();
         t.loadFont("res/fonts/vgasysr.ttf", 16);
 
-        // OpenAL setup.
+        // OpenAL.
         displayLoadingMsg("Initializing OpenAL", &materialReg[0].shader, &window);
 #ifndef NDEBUG
         if(std::filesystem::exists("OpenAL32d.dll")) FSOAL::initialize();
@@ -1199,14 +1198,16 @@ class EditorApp : public App {
         materialReg.push_back(Material().load("res/mats/skybox.material.json"));
         materialReg.push_back(Material().load("res/mats/lit_3d.material.json"));
         reloadShaders();
+
+        // Billboards.
         displayLoadingMsg("Loading billboard system", &materialReg[0].shader, &window);
         billboard = EditorObject{ "Quad", Entity("res\\primitives\\quad.obj"), materialReg[1] };
-
         pointLightBillTex = Texture{ TextureFromFile("res/billboards/point_light.png"), "texture_diffuse", "res/billboards/point_light.png" };
 
         // Load de scene.
         displayLoadingMsg("Loading scene", &materialReg[0].shader, &window);
-        scene = Scene("res\\demo.scene.json", &sky);
+        scene.load("res\\demo.scene.json", &sky);
+
         // Framebuffer.
         displayLoadingMsg("Creating FBO", &materialReg[0].shader, &window);
         ppFBO = Framebuffer(window.getSize(), 2);
@@ -1217,7 +1218,7 @@ class EditorApp : public App {
         camera.farPlane = 1000;
         sceneWinSize = window.getSize();
 
-        // ImGUI setup.
+        // ImGUI.
         LOG_INFO("Initializing ImGui");
         displayLoadingMsg("Initializing ImGui", &materialReg[0].shader, &window);
         FSImGui::Initialize(&window);
@@ -1327,7 +1328,7 @@ class EditorApp : public App {
         } else LOG_WARN("Couldn't initialize LuaBridge (probably the library DLL is missing).");
 
         // Bullet3.
-        LOG_INFO("Initializing Bullet3");
+        //LOG_INFO("Initializing Bullet3");
         // Initialize Bullet. This strictly follows http://bulletphysics.org/mediawiki-1.5.8/index.php/Hello_World, 
         // even though we won't use most of this stuff.    
         //// Build the broadphase
@@ -1410,6 +1411,7 @@ class EditorApp : public App {
             for (size_t i = 0; i < materialReg.size(); i++) {
                 materialReg[i].enable();
                 materialReg[i].setInt("drawMode", drawMode);
+                materialReg[i].setInt("lightingType", lightingMode);
                 if(materialReg[i].type == 0) {
                     //materialReg[i].setInt("lightingType", lightingMode);
                     materialReg[i].setInt("numPointLights", 1);

@@ -60,7 +60,7 @@ if(FS_BUILD_SCENE_VIEWER)
 	target_link_libraries(${SCENE_VIEWER_PROJECT_NAME}
 		firesteel
 		glad
-		ImGui
+		imgui
 		glm
 		assimp
 		OpenAL
@@ -101,7 +101,7 @@ if(FS_BUILD_EXAMPLES)
 	target_link_libraries(fs3DExample
 		firesteel
 		glad
-		ImGui
+		imgui
 		glm
 		assimp
 		OpenAL

@@ -6,7 +6,7 @@
 
 #define __STDC_LIB_EXT1__
 #define STB_IMAGE_WRITE_IMPLEMENTATION
-#include "engine/include/utils/stb_image_write.hpp"
+#include "stb_image_write.hpp"
 
 /// Loads texture from given file.
 unsigned int TextureFromFile(const std::string& tPath, bool* tIsMonochromeOut = nullptr, bool tGamma = false) {

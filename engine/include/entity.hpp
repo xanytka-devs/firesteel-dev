@@ -17,6 +17,7 @@
 #include <iostream>
 #include <map>
 #include <vector>
+#include "utils/stbi_global.hpp"
 
 namespace Firesteel {
 
